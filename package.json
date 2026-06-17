@@ -1,0 +1,28 @@
+{
+  "name": "ai-assisted-qa-automation-2",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yzulyak/ai-assisted-qa-automation-2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yzulyak/ai-assisted-qa-automation-2/issues"
+  },
+  "homepage": "https://github.com/yzulyak/ai-assisted-qa-automation-2#readme",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.61.0",
+    "@types/node": "^25.9.3"
+  }
+}
