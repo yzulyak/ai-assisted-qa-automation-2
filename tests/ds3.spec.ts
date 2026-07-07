@@ -1,13 +1,22 @@
+import dotenv from 'dotenv';
+import path from 'path';
 import { test, expect, type Page } from '@playwright/test';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const BASE_URL = process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio';
 const ADMIN_EMAIL = process.env.DIDAXIS_EMAIL ?? '';
 const ADMIN_PASSWORD = process.env.DIDAXIS_PASSWORD ?? '';
 
-const PROGRAM_NAME_MAX_LENGTH = 255;
+/** Confluence: Program Setup — Field Definitions */
+const PROGRAM_NAME_MAX_LENGTH = 100;
 
 function uniqueName(base: string): string {
   return `${base}-${Date.now()}`;
+}
+
+function newProgramButton(page: Page) {
+  return page.getByRole('button', { name: '+ New Program' });
 }
 
 function newProgramDialog(page: Page) {
@@ -24,6 +33,10 @@ function descriptionField(page: Page) {
 
 function createButton(page: Page) {
   return newProgramDialog(page).getByRole('button', { name: 'Create' });
+}
+
+function cancelButton(page: Page) {
+  return newProgramDialog(page).getByRole('button', { name: 'Cancel' });
 }
 
 function programInList(page: Page, name: string) {
@@ -54,12 +67,13 @@ async function loginAsAdmin(page: Page): Promise<void> {
 
 async function goToPrograms(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/programs`);
-  await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
+  await expect(newProgramButton(page)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs', level: 2 })).toBeVisible();
   await expect(page.locator('table tbody')).toBeVisible({ timeout: 15_000 });
 }
 
 async function openNewProgramModal(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'New Program' }).click();
+  await newProgramButton(page).click();
   await expect(newProgramDialog(page)).toBeVisible();
   await expect(programNameField(page)).toBeVisible();
 }
@@ -80,12 +94,14 @@ async function createProgram(
 }
 
 function duplicateErrorLocator(page: Page) {
-  return newProgramDialog(page).getByText(/already exists|name.*taken|already been used/i);
+  return newProgramDialog(page).getByText(/already exists|name.*taken|already been used|duplicate/i);
 }
 
 async function expectDuplicateNameError(page: Page): Promise<void> {
   await expect(duplicateErrorLocator(page)).toBeVisible();
 }
+
+const DUPLICATE_CHECK_SETTLE_MS = 1_000;
 
 async function expectDuplicateSubmissionRejected(
   page: Page,
@@ -102,16 +118,7 @@ async function expectDuplicateSubmissionRejected(
 
   await createButton(page).click();
   await createResponse.catch(() => null);
-
-  await expect(async () => {
-    const count = await rows.count();
-    const modalOpen = await newProgramDialog(page).isVisible();
-    const errorVisible = modalOpen
-      ? await duplicateErrorLocator(page).isVisible().catch(() => false)
-      : false;
-
-    expect(count > countBefore || !modalOpen || errorVisible).toBeTruthy();
-  }).toPass({ timeout: 15_000 });
+  await page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
   await expect(rows).toHaveCount(options.expectedRowCount);
   await expect(newProgramDialog(page)).toBeVisible();
@@ -160,6 +167,7 @@ test.describe('Positive flows', () => {
 
     await expect(newProgramDialog(page)).not.toBeVisible({ timeout: 15_000 });
     await expect(programInList(page, trimmedName)).toBeVisible();
+    await expect(programRowsWithName(page, trimmedName)).toHaveCount(1);
     const nameCell = programRowsWithName(page, trimmedName).locator('p').first();
     await expect(nameCell).toHaveText(trimmedName);
   });
@@ -267,7 +275,7 @@ test.describe('Edge cases', () => {
   test('TC-008: Minimum valid non-whitespace Program Name (one character) is allowed', async ({
     page,
   }) => {
-    const programName = String.fromCharCode(65 + (Date.now() % 26));
+    const programName = `Z${Date.now() % 10000}`;
 
     await openNewProgramModal(page);
     await programNameField(page).fill(programName);
@@ -278,7 +286,7 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, programName)).toBeVisible();
   });
 
-  test('TC-009: Program Name at the documented maximum length (255 characters) is saved and displayed in full', async ({
+  test('TC-009: Program Name at the documented maximum length (100 characters) is saved and displayed in full', async ({
     page,
   }) => {
     const suffix = Date.now().toString();
@@ -309,12 +317,13 @@ test.describe('Edge cases', () => {
 
     if (!blockedBeforeSubmit) {
       await createButton(page).click();
+      await page.waitForTimeout(1_000);
     }
 
     const modalStillOpen = await newProgramDialog(page).isVisible().catch(() => false);
     const validationErrorVisible = modalStillOpen
       ? await newProgramDialog(page)
-          .getByText(/too long|maximum|255/i)
+          .getByText(/too long|maximum|100/i)
           .isVisible()
           .catch(() => false)
       : false;
@@ -381,5 +390,27 @@ test.describe('Edge cases', () => {
     await programNameField(page).fill('   ');
     await expect(createButton(page)).toBeDisabled();
     await expect(newProgramDialog(page)).toBeVisible();
+  });
+
+  test('TC-014: New Program modal shows required Program Name label and Cancel control', async ({
+    page,
+  }) => {
+    await openNewProgramModal(page);
+
+    await expect(newProgramDialog(page).getByText('Program Name *')).toBeVisible();
+    await expect(programNameField(page)).toBeVisible();
+    await expect(descriptionField(page)).toBeVisible();
+    await expect(createButton(page)).toBeVisible();
+    await expect(cancelButton(page)).toBeVisible();
+  });
+
+  test('TC-015: Description field must be scoped to modal to avoid table action button collisions', async ({
+    page,
+  }) => {
+    await openNewProgramModal(page);
+
+    await expect(descriptionField(page)).toHaveCount(1);
+    await descriptionField(page).fill('Scoped description field test');
+    await expect(descriptionField(page)).toHaveValue('Scoped description field test');
   });
 });

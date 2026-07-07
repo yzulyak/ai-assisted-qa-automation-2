@@ -1,4 +1,8 @@
+import dotenv from 'dotenv';
+import path from 'path';
 import { test, expect, type Page } from '@playwright/test';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const BASE_URL = process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio';
 const ADMIN_EMAIL = process.env.DIDAXIS_EMAIL ?? '';
@@ -6,11 +10,16 @@ const ADMIN_PASSWORD = process.env.DIDAXIS_PASSWORD ?? '';
 const NON_ADMIN_EMAIL = process.env.DIDAXIS_NON_ADMIN_EMAIL ?? '';
 const NON_ADMIN_PASSWORD = process.env.DIDAXIS_NON_ADMIN_PASSWORD ?? '';
 
-const PROGRAM_NAME_MAX_LENGTH = 255;
-const DESCRIPTION_MAX_LENGTH = 2000;
+/** Confluence: Program Setup — Field Definitions */
+const PROGRAM_NAME_MAX_LENGTH = 100;
+const DESCRIPTION_MAX_LENGTH = 500;
 
 function uniqueName(base: string): string {
-  return `${base}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${base}-${Date.now()}`;
+}
+
+function newProgramButton(page: Page) {
+  return page.getByRole('button', { name: '+ New Program' });
 }
 
 function newProgramDialog(page: Page) {
@@ -18,7 +27,7 @@ function newProgramDialog(page: Page) {
 }
 
 function editProgramDialog(page: Page) {
-  return page.getByRole('dialog').filter({ hasText: 'Edit Program' });
+  return page.getByRole('dialog', { name: 'Edit Program' });
 }
 
 function programNameField(page: Page) {
@@ -33,8 +42,16 @@ function saveButton(page: Page) {
   return editProgramDialog(page).getByRole('button', { name: 'Save' });
 }
 
+function cancelButton(page: Page) {
+  return editProgramDialog(page).getByRole('button', { name: 'Cancel' });
+}
+
+function dialogCloseButton(page: Page) {
+  return editProgramDialog(page).getByRole('banner').getByRole('button');
+}
+
 function programInList(page: Page, name: string) {
-  return programRow(page, name);
+  return page.locator('table tbody').getByText(name, { exact: true });
 }
 
 function programRow(page: Page, name: string) {
@@ -45,6 +62,10 @@ function programRow(page: Page, name: string) {
 
 function programRowsWithName(page: Page, name: string) {
   return programRow(page, name);
+}
+
+function duplicateErrorLocator(page: Page) {
+  return editProgramDialog(page).getByText(/already exists|name.*taken|already been used|duplicate/i);
 }
 
 async function login(page: Page, email: string, password: string): Promise<void> {
@@ -61,7 +82,8 @@ async function loginAsAdmin(page: Page): Promise<void> {
 
 async function goToPrograms(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/programs`);
-  await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
+  await expect(newProgramButton(page)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs', level: 2 })).toBeVisible();
   await expect(page.locator('table tbody')).toBeVisible({ timeout: 15_000 });
 }
 
@@ -70,7 +92,7 @@ async function createProgram(
   name: string,
   description?: string,
 ): Promise<void> {
-  await page.getByRole('button', { name: 'New Program' }).click();
+  await newProgramButton(page).click();
   const dialog = newProgramDialog(page);
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Program Name').fill(name);
@@ -92,27 +114,23 @@ async function openEditModal(page: Page, programName: string): Promise<void> {
 
 async function closeEditModalWithoutSaving(page: Page): Promise<void> {
   const dialog = editProgramDialog(page);
-  const cancelButton = dialog.getByRole('button', { name: 'Cancel' });
-  const closeButton = dialog.getByRole('button', { name: 'Close' });
 
-  if (await cancelButton.isVisible()) {
-    await cancelButton.click();
-  } else if (await closeButton.isVisible()) {
-    await closeButton.click();
+  if (await cancelButton(page).isVisible()) {
+    await cancelButton(page).click();
+  } else if (await dialogCloseButton(page).isVisible()) {
+    await dialogCloseButton(page).click();
   } else {
     await page.keyboard.press('Escape');
   }
 
-  await expect(editProgramDialog(page)).not.toBeVisible();
-}
-
-function duplicateErrorLocator(page: Page) {
-  return editProgramDialog(page).getByText(/already exists|name.*taken|already been used/i);
+  await expect(dialog).not.toBeVisible();
 }
 
 async function expectDuplicateNameError(page: Page): Promise<void> {
   await expect(duplicateErrorLocator(page)).toBeVisible();
 }
+
+const DUPLICATE_CHECK_SETTLE_MS = 1_000;
 
 async function expectDuplicateEditRejected(
   page: Page,
@@ -129,16 +147,7 @@ async function expectDuplicateEditRejected(
 
   await saveButton(page).click();
   await saveResponse.catch(() => null);
-
-  await expect(async () => {
-    const count = await rows.count();
-    const modalOpen = await editProgramDialog(page).isVisible();
-    const errorVisible = modalOpen
-      ? await duplicateErrorLocator(page).isVisible().catch(() => false)
-      : false;
-
-    expect(count > countBefore || modalOpen || errorVisible).toBeTruthy();
-  }).toPass({ timeout: 15_000 });
+  await page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
   await expect(rows).toHaveCount(options.expectedRowCount);
   await expect(editProgramDialog(page)).toBeVisible();
@@ -168,6 +177,7 @@ test.describe('Positive flows', () => {
     await expect(programNameField(page)).toHaveValue(programName);
     await expect(descriptionField(page)).toHaveValue(description);
     await expect(saveButton(page)).toBeVisible();
+    await expect(cancelButton(page)).toBeVisible();
   });
 
   test('TC-002: Program name update is saved and reflected in the list', async ({ page }) => {
@@ -409,12 +419,13 @@ test.describe('Edge cases', () => {
 
     if (!blockedBeforeSubmit) {
       await saveButton(page).click();
+      await page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
     }
 
     const modalStillOpen = await editProgramDialog(page).isVisible().catch(() => false);
     const validationErrorVisible = modalStillOpen
       ? await editProgramDialog(page)
-          .getByText(/too long|maximum|255/i)
+          .getByText(/too long|maximum|100/i)
           .isVisible()
           .catch(() => false)
       : false;
@@ -501,5 +512,39 @@ test.describe('Edge cases', () => {
     await openEditModal(page, programName);
     await expect(programNameField(page)).toHaveValue(programName);
     await expect(descriptionField(page)).toHaveValue('');
+  });
+
+  test('TC-020: Edit modal exposes AI Generation Config section', async ({ page }) => {
+    const programName = uniqueName('Web Development 2026');
+
+    await createProgram(page, programName, 'Full-stack web development program');
+    await openEditModal(page, programName);
+
+    await expect(editProgramDialog(page).getByText('Program Name *')).toBeVisible();
+    await expect(
+      editProgramDialog(page).getByRole('button', { name: /Show AI Generation Config/i }),
+    ).toBeVisible();
+  });
+
+  test('TC-021: Description exceeding maximum length is rejected on edit', async ({ page }) => {
+    const programName = uniqueName('Cloud Computing 2026');
+    const overMaxDescription = 'D'.repeat(DESCRIPTION_MAX_LENGTH + 1);
+
+    await createProgram(page, programName, 'Intro to cloud platforms');
+    await openEditModal(page, programName);
+    await descriptionField(page).fill(overMaxDescription);
+    await saveButton(page).click();
+    await page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
+
+    const modalStillOpen = await editProgramDialog(page).isVisible();
+    const validationErrorVisible = modalStillOpen
+      ? await editProgramDialog(page)
+          .getByText(/too long|maximum|500/i)
+          .isVisible()
+          .catch(() => false)
+      : false;
+
+    expect(modalStillOpen || validationErrorVisible).toBeTruthy();
+    await expect(programInList(page, programName)).toBeVisible();
   });
 });

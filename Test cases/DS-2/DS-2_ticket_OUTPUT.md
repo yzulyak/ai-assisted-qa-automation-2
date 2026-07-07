@@ -2,7 +2,11 @@
 
 **Feature:** Edit existing program details  
 **Role:** Admin  
-**Scope:** Program edit modal from the Programs page (edit icon on a program row)
+**Scope:** Program edit modal from the Programs page (edit icon on a program row)  
+**Jira:** [DS-2 — Edit existing program details](https://legionqaschool.atlassian.net/browse/DS-2)  
+**Confluence:** [Architecture Overview](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233013249/Architecture+Overview), [Program Setup — UI Behavior](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233111568/Program+Setup+UI+Behavior), [Program Setup — Field Definitions](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233078785/Program+Setup+Field+Definitions), [Program Setup — Validation Rules](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233111553/Program+Setup+Validation+Rules)
+
+**MCP page exploration (2026-07-06):** Programs page at `/programs` shows heading **Programs** (h2), subtitle “Manage academic programs and semesters”, **+ New Program** button, table with program name + description preview per row, **Edit {name}** / **Delete {name}** action buttons, and semester panel placeholder “Select a program to manage semesters”. Edit opens dialog **Edit Program** with **Program Name \***, **Description**, collapsible **▸ Show AI Generation Config**, **Cancel**, **Save**, and X close in banner.
 
 ---
 
@@ -291,6 +295,8 @@
 
 **Priority:** High
 
+**Bug found:** [DS-147](https://legionqaschool.atlassian.net/browse/DS-147) — duplicate name allowed on edit, creates second list row (confirmed 2026-07-06).
+
 ---
 
 ### TC-010 — Failed edit attempt does not create a duplicate program entry
@@ -422,8 +428,8 @@
 - Admin user account exists
 - Admin is logged in
 - Program **"Web Development 2026"** exists with **Program Name** `"Web Development 2026"` and **Description** `"Full-stack web development program"`
-- Max length for **Program Name** is known (assume **255 characters** if unspecified)
-- A 255-character unique name is prepared (e.g. `"B" * 255`)
+- Max length for **Program Name** is **100 characters** (Confluence: Program Setup — Field Definitions)
+- A 100-character unique name is prepared
 
 **Steps:**
 
@@ -431,10 +437,10 @@
    Given I am logged in as admin
    And I am on the Programs page
    When I click the edit icon on "Web Development 2026"
-   And I change the "Program Name" field to a 255-character string
+   And I change the "Program Name" field to a 100-character string
    And I click "Save"
    Then the program edit modal closes
-   And the Programs page program list displays the full 255-character program name
+   And the Programs page program list displays the full 100-character program name
    ```
 
 **Expected result:** Max-length name saved and displayed without truncation.
@@ -452,7 +458,7 @@
 - Admin user account exists
 - Admin is logged in
 - Program **"Web Development 2026"** exists with **Program Name** `"Web Development 2026"` and **Description** `"Full-stack web development program"`
-- Max length for **Program Name** is known (assume **255 characters**)
+- Max length for **Program Name** is **100 characters** (Confluence)
 
 **Steps:**
 
@@ -460,9 +466,9 @@
    Given I am logged in as admin
    And I am on the Programs page
    When I click the edit icon on "Web Development 2026"
-   And I change the "Program Name" field to a 256-character string
+   And I change the "Program Name" field to a 101-character string
    And I click "Save"
-   Then either the input prevents typing beyond 255 characters
+   Then either the input prevents typing beyond 100 characters
    Or the "Save" button is disabled
    Or a validation error is shown for "Program Name"
    And the program list still displays "Web Development 2026"
@@ -471,6 +477,8 @@
 **Expected result:** Over-limit input blocked or rejected; original program name unchanged.
 
 **Priority:** Medium
+
+**Bug found:** [DS-149](https://legionqaschool.atlassian.net/browse/DS-149) — 101-character name accepted on edit (confirmed 2026-07-06).
 
 ---
 
@@ -483,7 +491,7 @@
 - Admin user account exists
 - Admin is logged in
 - Program **"Cloud Computing 2026"** exists with **Program Name** `"Cloud Computing 2026"` and **Description** `"Intro to cloud platforms"`
-- Max length for **Description** is known (assume **2000 characters** if unspecified)
+- Max length for **Description** is **500 characters** (Confluence: Program Setup — Field Definitions)
 
 **Steps:**
 
@@ -491,11 +499,11 @@
    Given I am logged in as admin
    And I am on the Programs page
    When I click the edit icon on "Cloud Computing 2026"
-   And I change the "Description" field to a 2000-character string
+   And I change the "Description" field to a 500-character string
    And I click "Save"
    Then the program edit modal closes
    When I click the edit icon on "Cloud Computing 2026"
-   Then the "Description" field contains the full 2000-character string
+   Then the "Description" field contains the full 500-character string
    ```
 
 **Expected result:** Full description persisted; no truncation on save or reload.
@@ -531,6 +539,8 @@
 **Expected result:** Case-insensitive duplicate rejected (or accepted if product defines case-sensitive names — see ambiguities).
 
 **Priority:** Medium
+
+**Bug found:** [DS-148](https://legionqaschool.atlassian.net/browse/DS-148) — case-only variant saved as separate program (confirmed 2026-07-06).
 
 ---
 
@@ -599,19 +609,114 @@
 
 ---
 
+### TC-020 — Edit modal exposes AI Generation Config section
+
+**Title:** Edit Program dialog shows AI Generation Config toggle and standard form controls
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Program **"Web Development 2026"** exists
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   When I click the edit icon on "Web Development 2026"
+   Then I see the "Edit Program" dialog
+   And I see "Program Name *"
+   And I see "Description"
+   And I see a "Show AI Generation Config" toggle
+   And I see "Cancel" and "Save" buttons
+   ```
+
+**Expected result:** Edit modal matches Confluence UI Behavior — Program Name, Description, collapsible AI config, Cancel/Save, X close.
+
+**Priority:** Low
+
+**Note:** Not in DS-2 AC; discovered during MCP page exploration.
+
+---
+
+### TC-021 — Description exceeding maximum length is rejected on edit
+
+**Title:** Program Description longer than 500 characters cannot be saved on edit
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Max Description length is 500 characters (Confluence)
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   And the program list contains "Cloud Computing 2026"
+   When I click the edit icon on "Cloud Computing 2026"
+   And I change the "Description" field to a 501-character string
+   And I click "Save"
+   Then the program edit modal remains open
+   And the program list still displays "Cloud Computing 2026" unchanged
+   ```
+
+**Expected result:** Over-limit description rejected per Confluence validation rules (400 response, error displayed).
+
+**Priority:** High
+
+**Note:** Confluence validation rules apply to edit; not explicitly in DS-2 AC.
+
+**Bug found:** [DS-150](https://legionqaschool.atlassian.net/browse/DS-150) — 501-character description accepted on edit (confirmed 2026-07-06).
+
+---
+
+### TC-022 — Program list updates immediately after successful edit
+
+**Title:** Renamed program appears in list without manual page refresh
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Program **"Web Development 2026"** exists
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   And the program list contains "Web Development 2026"
+   When I click the edit icon on "Web Development 2026"
+   And I change the "Program Name" field to "Web Development 2026 - Updated"
+   And I click "Save"
+   Then the program edit modal closes
+   And without refreshing the page the program list displays "Web Development 2026 - Updated"
+   ```
+
+**Expected result:** List re-fetches after mutation per Confluence “List Refresh Behavior (Critical)”.
+
+**Priority:** High
+
+**Maps to AC:** Successfully edit a program name
+
+---
+
 ## Coverage Summary
 
 | Acceptance Criteria | Test Case(s) |
 |---|---|
 | Open program for editing (form pre-populated) | TC-001 |
-| Successfully edit a program name | TC-002 |
+| Successfully edit a program name | TC-002, TC-022 |
 | Edit preserves unchanged fields | TC-003 |
 
-**Total test cases:** 19
+**Total test cases:** 22
 
 - Positive: 4
 - Negative: 6
-- Edge: 9
+- Edge: 12
 
 ---
 
@@ -621,7 +726,7 @@
 
 2. **Description required on edit?** AC only exercises changing Description; required/optional status and empty-Description behavior on edit are undefined (TC-019 assumes optional).
 
-3. **Max length limits** not specified for **Program Name** or **Description**. TC-014–TC-016 assume 255 / 2000 characters; replace with actual limits from spec or UI.
+3. **Max length limits** — Confluence specifies **100** characters for **Program Name** and **500** for **Description** (TC-014–TC-016, TC-021).
 
 4. **Duplicate name policy on edit** not in AC. TC-009 and TC-017 assume duplicates are blocked; case sensitivity is undefined.
 
@@ -631,7 +736,7 @@
 
 7. **List update mechanism** not specified — AC says list updates "immediately"; unclear if this is optimistic UI, refetch, or websocket. No AC for loading state during save.
 
-8. **Edit icon affordance** not described (pencil icon, row menu, inline button). TC-001 assumes an edit icon per program row.
+8. **Edit icon affordance** — Confluence and live UI use accessible button **Edit {program name}** per program row (not a generic unnamed icon).
 
 9. **Trimming whitespace** in **Program Name** on save not specified. TC-011 assumes whitespace-only is invalid; leading/trailing trim behavior on save is unclear.
 

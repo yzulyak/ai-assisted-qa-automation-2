@@ -1,8 +1,79 @@
 # DS-5 — Test Plan: Program List Filtering and Display
 
+**Jira:** [DS-5 — Program list filtering and display](https://legionqaschool.atlassian.net/browse/DS-5)  
 **Feature:** Program list filtering and display  
 **Role:** Admin  
-**Scope:** Programs page — program list rendering, key field display, and empty state
+**Scope:** Programs page — program list rendering, key field display, and empty state  
+**Playwright spec:** `tests/ds5.spec.ts`  
+**Evidence:** `test-evidence/DS-5/*.png`, `test-evidence/DS-5/exploration-findings.json`
+
+---
+
+## Jira Ticket Summary
+
+**Title:** Program list filtering and display
+
+**User story:** As an admin user, I want to see all programs in a clear list so that I can quickly find and manage them.
+
+**Acceptance Criteria:**
+
+```gherkin
+Scenario: Display program list with key details
+  Given programs exist in the system
+  When I navigate to the Programs page
+  Then I see a list showing each program's name and description
+
+Scenario: Empty state when no programs exist
+  Given no programs exist
+  When I navigate to the Programs page
+  Then I see a message indicating no programs have been created
+  And I see a prompt to create the first program
+```
+
+---
+
+## Confluence — Architecture Overview (MCP Evidence)
+
+**Page:** [Architecture Overview](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233013249/Architecture+Overview) (space: DS, page ID: 233013249)
+
+**Summary pulled via Atlassian MCP:**
+
+Didaxis Studio uses a **three-layer architecture** separating curriculum intent from schedule and student workload:
+
+| Layer | What | Example |
+|---|---|---|
+| **Layer 1 — Session Templates** | Curriculum structure without dates | Lecture: Introduction to Java, Lab: Build REST API |
+| **Layer 2 — Scheduled Sessions** | Calendar entries with `source` (MANUAL \| GENERATED \| TEMPLATE) and `status` (LOCKED \| PLANNED) | Sep 8 — Java Lecture — Intro to Java — Room 301 |
+| **Layer 3 — Assignments** | Student deliverables with assigned_date, due_date, estimated_hours | Lab Report due Sep 15, 4 hours estimated |
+
+**Key invariants:**
+- Calendar is the live data source — changes propagate to hour totals, template status, validation
+- MANUAL and LOCKED sessions are immovable anchors — generator cannot move them
+- Validation runs after every mutation, debounced at 500ms
+- Generator is deterministic — same inputs produce identical schedules
+
+---
+
+## Live Page Exploration (2026-07-06)
+
+Explored `https://test.didaxis.studio/programs` after admin login (credentials from `.env`).
+
+| UI Element | Observed Locator / Value |
+|---|---|
+| Page heading | `getByRole('heading', { name: 'Programs', level: 2 })` |
+| Subtitle | `Manage academic programs and semesters` |
+| Helper text | `Select a program to manage semesters` |
+| Create button | `getByRole('button', { name: '+ New Program' })` |
+| Table | `table tbody` with column header `Program` + actions column |
+| Row layout | Program **name** (bold) + **description** (gray, below name) in first column |
+| Row actions | `Edit {name}`, `Delete {name}` icon buttons |
+| New Program dialog | `role=dialog, name='New Program'` |
+| Program Name field | `dialog.getByLabel('Program Name')` (must be dialog-scoped) |
+| Description field | `dialog.getByLabel('Description')` (must be dialog-scoped — unscoped matches table action buttons) |
+| Empty description | Row shows name only; no `—` / `No description` placeholder |
+| Programs on load | 332+ rows (empty-state TC-002 not runnable in shared env) |
+
+**Screenshots:** `test-evidence/DS-5/programs-page.png`, `new-program-modal.png`, `program-created-in-list.png`, `empty-description-row.png`
 
 ---
 
@@ -221,21 +292,21 @@
 
 ### TC-008 — Maximum-length program name displays correctly in the list
 
-**Title:** A program whose name is at the maximum allowed length (255 characters) is fully visible or gracefully truncated in the list
+**Title:** A program whose name is at the maximum allowed length (100 characters) is fully visible or gracefully truncated in the list
 
 **Preconditions:**
 
 - Admin user account exists
 - Admin is logged in
-- Program exists with **Program Name** set to a 255-character string: `"Advanced Web Development and Cloud Architecture Certification Program Track Level Nine Extended Curriculum Design Specialization Module for Professional Engineers and Software Architects in Modern Enterprise Environments Including DevOps Security Scalability Microservices Containerization and Continuous Integration Delivery Pipelines Edition 2026 Final Version Release Candidate Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega End"` and **Description** `"Max-length name display test"` (seeded independently)
+- Program exists with **Program Name** set to a 100-character string: `"Advanced Web Development and Cloud Architecture Certification Program Track Level Nine Extended Curriculum Design Specialization Module for Professional Engineers and Software Architects in Modern Enterprise Environments Including DevOps Security Scalability Microservices Containerization and Continuous Integration Delivery Pipelines Edition 2026 Final Version Release Candidate Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega End"` (trimmed to 100 chars at runtime) and **Description** `"Max-length name display test"` (seeded independently)
 
 **Steps:**
 
 1. ```gherkin
    Given I am logged in as admin
-   And a program with a 255-character name exists in the system
+   And a program with a 100-character name exists in the system
    When I navigate to the Programs page
-   Then the program list displays the 255-character program name
+   Then the program list displays the 100-character program name
    And the program list displays "Max-length name display test" for that program
    And the program list row does not break the page layout
    And the full name is accessible via tooltip or expand if truncated in the UI
@@ -362,18 +433,133 @@
 
 ---
 
+### TC-013 — Programs page displays heading, subtitle, and program table
+
+**Title:** Programs page chrome includes heading, subtitle, table header, and helper text
+
+**Preconditions:**
+- Admin user account exists
+- Admin is logged in
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   When I navigate to the Programs page
+   Then I see heading "Programs"
+   And I see subtitle "Manage academic programs and semesters"
+   And I see table column header "Program"
+   And I see helper text "Select a program to manage semesters"
+   ```
+
+**Expected result:** Page chrome matches live UI observed during exploration.
+
+**Priority:** Medium  
+**Observed (2026-07-06):** Passes.
+
+---
+
+### TC-014 — Program row exposes Edit and Delete action buttons
+
+**Title:** Each program row in the list shows Edit and Delete management actions
+
+**Preconditions:**
+- Admin user account exists
+- Admin is logged in
+- Program **"Action Buttons Program"** exists (created in-test)
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And program "Action Buttons Program" exists in the system
+   When I navigate to the Programs page
+   Then the row for "Action Buttons Program" shows an Edit button
+   And the row for "Action Buttons Program" shows a Delete button
+   ```
+
+**Expected result:** Row-level management actions are visible for admin users.
+
+**Priority:** Medium  
+**Observed (2026-07-06):** Passes.
+
+---
+
+### TC-015 — Description field locator must be scoped to modal
+
+**Title:** Description input is uniquely addressable inside the New Program dialog
+
+**Preconditions:**
+- Admin user account exists
+- Admin is logged in
+- At least one program exists in the list (table action buttons include "Description" in aria-labels)
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page with existing programs
+   When I click "+ New Program"
+   Then dialog.getByLabel("Description") resolves to exactly one element
+   And I can fill the Description field without strict-mode violation
+   ```
+
+**Expected result:** Dialog-scoped locator avoids collision with table action buttons.
+
+**Priority:** Medium  
+**Discovered from page exploration:** Unscoped `getByLabel('Description')` matches 11+ table buttons.
+
+---
+
+### TC-016 — Malformed programs API response shows error instead of blank list
+
+**Title:** Invalid JSON from the programs list API shows an error state, not raw response text
+
+**Preconditions:**
+- Admin user account exists
+- Admin is logged in
+- The programs list API is configured to return HTTP 200 with body `not-json`
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And the programs list API will return invalid JSON
+   When I navigate to the Programs page
+   Then I see an error message indicating the program list could not be loaded
+   And I do not see a message indicating no programs have been created
+   And I do not see the raw API response body rendered on the page
+   ```
+
+**Expected result:** Parse/load failure is distinguished from a genuine empty dataset; user is not shown raw response text.
+
+**Priority:** High  
+**Observed (2026-07-06):** **Fail** — page renders literal `not-json` with no error UI.
+
+---
+
 ## Coverage Summary
 
-| Acceptance Criteria | Test Case(s) |
-|---|---|
-| Display program list with key details | TC-001, TC-003, TC-006, TC-011 |
-| Empty state when no programs exist | TC-002, TC-003, TC-005 |
+| Acceptance Criteria | Test Case(s) | Live Status |
+|---|---|---|
+| Display program list with key details | TC-001, TC-003, TC-006, TC-011, TC-013, TC-014 | Pass |
+| Empty state when no programs exist | TC-002, TC-003, TC-005, TC-016 | TC-002 skipped (shared env has data); TC-005 pass; TC-016 **fail** |
 
-**Total test cases:** 12
+**Total test cases:** 16
 
 - Positive: 2
 - Negative: 4
-- Edge: 6
+- Edge: 10
+
+**Playwright run (2026-07-06):** 13 passed, 2 skipped, 1 failed (TC-016)
+
+---
+
+## Bugs Logged (Jira sub-tasks of DS-5)
+
+| Jira | Summary | Test | Line | Evidence |
+|---|---|---|---|---|
+| [DS-157](https://legionqaschool.atlassian.net/browse/DS-157) | Yaroslav: Malformed programs API response renders raw body with no error UI | TC-016 | `tests/ds5.spec.ts:471` | `test-evidence/DS-5/yaroslav-bug-malformed-api-tc016.png` |
 
 ---
 
@@ -381,28 +567,30 @@
 
 1. **Filtering not specified** — The feature title references *filtering*, but no AC defines search, sort, category filter, or status filter behavior. Scope of "filtering" is undefined; no filter test cases are included.
 
-2. **Exact empty-state copy** — AC requires a message that no programs exist and a create prompt, but does not define exact wording, iconography, or whether the prompt is inline text, a button label (**+ New Program**), or a separate link.
+2. **Exact empty-state copy** — AC requires a message that no programs exist and a create prompt, but does not define exact wording. Live UI uses **+ New Program** as the create prompt.
 
-3. **List layout** — AC does not specify table vs. card layout, column headers (**Program Name**, **Description**), row actions (edit/delete icons from DS-2/DS-4), or responsive/mobile behavior.
+3. **List layout** — Live UI uses a **table** with a single **Program** column (name + description stacked) and a separate actions column with Edit/Delete icons (TC-014).
 
 4. **Required role** — AC does not state who may view the Programs page; admin-only access is assumed from related tickets (TC-004).
 
 5. **Sort order** — No AC for default ordering (alphabetical, created date, manual). TC-001 does not assert order.
 
-6. **Pagination / virtual scroll** — AC does not define behavior when many programs exist (page size, "load more", infinite scroll).
+6. **Pagination / virtual scroll** — AC does not define behavior when many programs exist (332+ observed). No pagination or search/filter UI present despite feature title referencing *filtering*.
 
-7. **Description optional vs. required in list** — AC pairs name and description, but empty-description display rules are unspecified (TC-009 assumes a placeholder or blank is acceptable).
+7. **Description optional vs. required in list** — Live UI shows empty description as blank space below the name (no `—` / `No description` placeholder).
 
-8. **Max field lengths** — No AC limit for name or description length in the list view; TC-008 assumes **255 characters** for name based on related program features.
+8. **Max field lengths** — Confluence specifies **100** characters for program name. TC-008 updated accordingly.
 
-9. **Loading state** — AC covers populated and empty states only; spinner/skeleton behavior while fetching is undefined (TC-005 covers error only).
+9. **Loading state** — TC-005 covers HTTP 500; TC-016 covers malformed JSON (fails — DS-157).
 
 10. **Soft-deleted or hidden programs** — AC does not clarify whether archived, draft, or soft-deleted programs appear in the list.
 
-11. **Accessibility** — No AC for screen-reader structure (table semantics, aria labels for empty state, keyboard navigation through list rows).
+11. **Accessibility** — Live table actions column header is empty (related DS-117). Description locator must be dialog-scoped (TC-015).
 
 12. **Internationalization** — Empty-state message localization and RTL layout for special-character program names are not addressed.
 
 13. **Real-time updates** — AC does not state whether the list auto-refreshes when another admin creates or deletes a program while the page is open.
 
-14. **Empty state with pre-existing navigation** — AC does not clarify whether sidebar/header chrome (e.g. **Programs** nav item) differs between empty and populated states beyond the list area itself.
+14. **Empty state with pre-existing navigation** — AC does not clarify whether sidebar/header chrome differs between empty and populated states beyond the list area itself.
+
+15. **API error handling** — Malformed JSON (HTTP 200) renders raw body `not-json` instead of an error state (DS-157).

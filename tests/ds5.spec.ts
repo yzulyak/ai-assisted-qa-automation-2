@@ -1,4 +1,8 @@
+import dotenv from 'dotenv';
+import path from 'path';
 import { test, expect, type Page } from '@playwright/test';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const BASE_URL = process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio';
 const ADMIN_EMAIL = process.env.DIDAXIS_EMAIL ?? '';
@@ -6,13 +10,16 @@ const ADMIN_PASSWORD = process.env.DIDAXIS_PASSWORD ?? '';
 const NON_ADMIN_EMAIL = process.env.DIDAXIS_NON_ADMIN_EMAIL ?? '';
 const NON_ADMIN_PASSWORD = process.env.DIDAXIS_NON_ADMIN_PASSWORD ?? '';
 
-const PROGRAM_NAME_MAX_LENGTH = 255;
+/** Confluence: Program Setup — Field Definitions */
+const PROGRAM_NAME_MAX_LENGTH = 100;
 
 const MAX_LENGTH_NAME_BASE =
   'Advanced Web Development and Cloud Architecture Certification Program Track Level Nine Extended Curriculum Design Specialization Module for Professional Engineers and Software Architects in Modern Enterprise Environments Including DevOps Security Scalability Microservices Containerization and Continuous Integration Delivery Pipelines Edition 2026 Final Version Release Candidate Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega End';
 
 const LONG_DESCRIPTION =
   'This comprehensive technical writing workshop covers curriculum scope spanning documentation standards, audience analysis, and information architecture. Prerequisites include basic writing proficiency and familiarity with collaborative editing tools. Delivery format combines instructor-led sessions with hands-on exercises and peer review cycles. Assessment methods include portfolio submissions, structured rubrics, and capstone documentation projects. Certification outcomes prepare participants for professional technical communication roles in software, engineering, and product organizations worldwide with industry-recognized credentials and practical skills.';
+
+const EVIDENCE_DIR = path.resolve(__dirname, '../test-evidence/DS-5');
 
 function uniqueName(base: string): string {
   return `${base}-${Date.now()}`;
@@ -23,8 +30,24 @@ function maxLengthProgramName(): string {
   return `${MAX_LENGTH_NAME_BASE.slice(0, Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
 }
 
+function newProgramButton(page: Page) {
+  return page.getByRole('button', { name: '+ New Program' });
+}
+
 function newProgramDialog(page: Page) {
   return page.getByRole('dialog', { name: 'New Program' });
+}
+
+function programNameField(page: Page) {
+  return newProgramDialog(page).getByLabel('Program Name');
+}
+
+function descriptionField(page: Page) {
+  return newProgramDialog(page).getByLabel('Description');
+}
+
+function createButton(page: Page) {
+  return newProgramDialog(page).getByRole('button', { name: 'Create' });
 }
 
 function programRow(page: Page, name: string) {
@@ -71,8 +94,15 @@ async function loginAsAdmin(page: Page): Promise<void> {
 
 async function goToPrograms(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/programs`);
-  await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
+  await expect(newProgramButton(page)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs', level: 2 })).toBeVisible();
   await expect(page.locator('table tbody')).toBeVisible({ timeout: 15_000 });
+}
+
+async function openNewProgramModal(page: Page): Promise<void> {
+  await newProgramButton(page).click();
+  await expect(newProgramDialog(page)).toBeVisible();
+  await expect(programNameField(page)).toBeVisible();
 }
 
 async function createProgram(
@@ -80,16 +110,14 @@ async function createProgram(
   name: string,
   description?: string,
 ): Promise<void> {
-  await page.getByRole('button', { name: 'New Program' }).click();
-  const dialog = newProgramDialog(page);
-  await expect(dialog).toBeVisible();
-  await dialog.getByLabel('Program Name').fill(name);
+  await openNewProgramModal(page);
+  await programNameField(page).fill(name);
   if (description !== undefined) {
-    await dialog.getByLabel('Description').fill(description);
+    await descriptionField(page).fill(description);
   }
-  await dialog.getByRole('button', { name: 'Create' }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-  await expect(programRow(page, name)).toHaveCount(1, { timeout: 15_000 });
+  await createButton(page).click();
+  await expect(newProgramDialog(page)).not.toBeVisible({ timeout: 15_000 });
+  await expect(programInList(page, name)).toBeVisible({ timeout: 15_000 });
 }
 
 async function expectProgramRowShowsNameAndDescription(
@@ -180,8 +208,8 @@ test.describe('Positive flows', () => {
 
     await expect(page.locator('table tbody tr')).toHaveCount(0);
     await expect(emptyStateMessage(page)).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New Program' })).toBeEnabled();
+    await expect(newProgramButton(page)).toBeVisible();
+    await expect(newProgramButton(page)).toBeEnabled();
   });
 });
 
@@ -215,7 +243,7 @@ test.describe('Negative flows', () => {
     await login(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD);
     await page.goto(`${BASE_URL}/programs`);
 
-    await expect(page.getByRole('button', { name: 'New Program' })).not.toBeVisible();
+    await expect(newProgramButton(page)).not.toBeVisible();
 
     const programVisible = await programInList(page, programName)
       .isVisible()
@@ -397,7 +425,7 @@ test.describe('Edge cases', () => {
     }
 
     await page.reload();
-    await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
+    await expect(newProgramButton(page)).toBeVisible();
     await expect(page.locator('table tbody')).toBeVisible({ timeout: 15_000 });
 
     for (const program of programs) {
@@ -409,5 +437,58 @@ test.describe('Edge cases', () => {
       seededProgramCount += await programRow(page, program.name).count();
     }
     expect(seededProgramCount).toBe(2);
+  });
+
+  test('TC-013: Programs page displays heading, subtitle, and program table', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'Programs', level: 2 })).toBeVisible();
+    await expect(page.getByText('Manage academic programs and semesters')).toBeVisible();
+    await expect(page.locator('table')).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Program' })).toBeVisible();
+    await expect(page.getByText('Select a program to manage semesters')).toBeVisible();
+  });
+
+  test('TC-014: Program row exposes Edit and Delete action buttons', async ({ page }) => {
+    const programName = uniqueName('Action Buttons Program');
+    const description = 'Verify row-level management actions are visible';
+
+    await createProgram(page, programName, description);
+
+    const row = programRow(page, programName);
+    await expect(row.getByRole('button', { name: `Edit ${programName}` })).toBeVisible();
+    await expect(row.getByRole('button', { name: `Delete ${programName}` })).toBeVisible();
+  });
+
+  test('TC-015: Description field locator must be scoped to modal', async ({ page }) => {
+    const rowCount = await programRowCount(page);
+    test.skip(rowCount === 0, 'Requires at least one program row to validate locator scoping');
+
+    await openNewProgramModal(page);
+    await expect(descriptionField(page)).toHaveCount(1);
+    await descriptionField(page).fill('Scoped description locator test');
+    await expect(descriptionField(page)).toHaveValue('Scoped description locator test');
+  });
+
+  test('TC-016: Malformed programs API response shows error instead of blank list', async ({
+    page,
+  }) => {
+    await loginAsAdmin(page);
+
+    await page.route('**/*', async (route) => {
+      const request = route.request();
+      if (isProgramsListRequest(request.url(), request.method())) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: 'not-json',
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await page.goto(`${BASE_URL}/programs`);
+
+    await expect(listLoadErrorMessage(page)).toBeVisible({ timeout: 15_000 });
+    await expect(emptyStateMessage(page)).not.toBeVisible();
   });
 });

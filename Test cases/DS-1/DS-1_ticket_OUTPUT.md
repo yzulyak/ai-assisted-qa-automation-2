@@ -1,8 +1,64 @@
 # DS-1 — Test Plan: Create New Academic Program
 
+**Jira:** [DS-1 — Create new academic program](https://legionqaschool.atlassian.net/browse/DS-1)  
 **Feature:** Create new academic program  
 **Role:** Admin  
-**Scope:** Program creation modal from the Programs page
+**Scope:** Program creation modal from the Programs page  
+**Environment:** https://test.didaxis.studio/programs
+
+---
+
+## Jira Acceptance Criteria (DS-1)
+
+**User story:** As an admin user, I want to create a new academic program so that I can begin designing its curriculum structure.
+
+| Scenario | Given | When | Then |
+|---|---|---|---|
+| Navigate to program creation form | Logged in as admin | Navigate to Programs page and click "+ New Program" | Program creation form with **Program Name** and **Description** |
+| Successfully create a program | On program creation form | Fill Name "Web Development 2026", Description "Full-stack web development program", click **Create** | Modal closes; list shows "Web Development 2026" |
+| Validation prevents empty program name | On program creation form | Leave Program Name empty | **Create** button is disabled |
+
+---
+
+## Confluence — Architecture Overview (Atlassian MCP evidence)
+
+**Source:** [Architecture Overview](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233013249/Architecture+Overview)
+
+Didaxis Studio uses a **three-layer architecture** separating curriculum intent from schedule and student workload:
+
+| Layer | What | Example |
+|---|---|---|
+| **Layer 1 — Session Templates** | Curriculum structure without dates | Lecture: Introduction to Java |
+| **Layer 2 — Scheduled Sessions** | Calendar entries (`source`: MANUAL \| GENERATED \| TEMPLATE; `status`: LOCKED \| PLANNED) | Sep 8 — Java Lecture — Room 301 |
+| **Layer 3 — Assignments** | Student deliverables with assigned/due dates and estimated hours | Lab Report due Sep 15 |
+
+**Key invariants:** Calendar is the live data source; MANUAL/LOCKED sessions are immovable; validation debounced at 500ms; generator is deterministic.
+
+**Related Confluence (Program Setup):** [Field Definitions](https://legionqaschool.atlassian.net/wiki/spaces/DS/pages/233078785) — Name max 100 chars (unique per org), Description max 500 chars, Create disabled when name empty, name trimmed on submit.
+
+---
+
+## Observed UI (Playwright MCP — 2026-07-06)
+
+| Element | Locator / value |
+|---|---|
+| Page heading | `heading[level=2]` → **Programs** |
+| Page subtitle | **Manage academic programs and semesters** |
+| Action button | `button` → **+ New Program** |
+| Program table | `table` with column **Program**; each row shows name + description preview |
+| Row actions | **Edit {name}**, **Delete {name}** icon buttons |
+| Footer hint | **Select a program to manage semesters** |
+| Modal | `dialog[name="New Program"]` |
+| Program Name | `getByLabel('Program Name')` — required (`*`), placeholder *e.g. Computer Science BSc* |
+| Description | `getByLabel('Description')` — optional, placeholder *Brief description* |
+| Sidebar nav | Dashboard, Programs, Calendar, Validation, Scheduler, Export, Settings |
+| AI config toggle | `button` → **▸ Show AI Generation Config** / **▾ Hide AI Generation Config** (collapsible section) |
+| AI config fields | Total Program Hours (`placeholder: e.g. 900`), Default Session Hours (**4**), Default Exam Hours (**3**), Target Audience, Focus Areas, Sync/Async Ratio slider (default **70% sync / 30% async**) |
+| Dismiss controls | **Cancel** button + header **X** close button |
+| Submit | **Create** — disabled when Program Name empty |
+| Login | `/login` → Email, Password, **Sign In**; success shows **Sign out** |
+
+**Confluence field limits** (Program Setup — Field Definitions): Name max **100** chars, Description max **500** chars, Name unique per organization.
 
 ---
 
@@ -365,8 +421,8 @@
 
 - Admin user account exists
 - Admin is logged in
-- Max length for Program Name is known (assume **255 characters** if unspecified)
-- A 255-character unique name is prepared (e.g. `"A" * 255`)
+- Max length for Program Name is known (assume **100 characters** per Confluence Field Definitions)
+- A 100-character unique name is prepared (e.g. `"A" * 100`)
 
 **Steps:**
 
@@ -374,11 +430,11 @@
    Given I am logged in as admin
    And I am on the Programs page
    When I click "+ New Program"
-   And I fill in "Program Name" with a 255-character string
+   And I fill in "Program Name" with a 100-character string
    And I fill in "Description" with "Max length boundary test"
    And I click "Create"
    Then the program creation modal closes
-   And the Programs page program list displays the full 255-character program name
+   And the Programs page program list displays the full 100-character program name
    ```
 
 **Expected result:** Max-length name saved and displayed without truncation.
@@ -395,7 +451,7 @@
 
 - Admin user account exists
 - Admin is logged in
-- Max length for Program Name is known (assume **255 characters**)
+- Max length for Program Name is known (assume **100 characters**)
 
 **Steps:**
 
@@ -403,12 +459,12 @@
    Given I am logged in as admin
    And I am on the Programs page
    When I click "+ New Program"
-   And I fill in "Program Name" with a 256-character string
+   And I fill in "Program Name" with a 101-character string
    And I fill in "Description" with "Over max length test"
-   Then either the input prevents typing beyond 255 characters
+   Then either the input prevents typing beyond 100 characters
    Or the "Create" button is disabled
    Or an validation error is shown for "Program Name"
-   And no program with a 256-character name appears in the program list
+   And no program with a 101-character name appears in the program list
    ```
 
 **Expected result:** Over-limit input blocked or rejected; no corrupt entry in list.
@@ -425,7 +481,7 @@
 
 - Admin user account exists
 - Admin is logged in
-- Max length for Description is known (assume **2000 characters** if unspecified)
+- Max length for Description is known (assume **500 characters** per Confluence Field Definitions)
 - Program **"Cloud Computing 2026"** does not already exist
 
 **Steps:**
@@ -435,7 +491,7 @@
    And I am on the Programs page
    When I click "+ New Program"
    And I fill in "Program Name" with "Cloud Computing 2026"
-   And I fill in "Description" with a 2000-character string
+   And I fill in "Description" with a 500-character string
    And I click "Create"
    Then the program creation modal closes
    And the Programs page program list displays "Cloud Computing 2026"
@@ -508,19 +564,187 @@
 
 ---
 
+### TC-018 — Programs page displays heading, subtitle, and program table
+
+**Title:** Programs list page renders core layout elements
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   When I navigate to the Programs page
+   Then I see the heading "Programs"
+   And I see the subtitle "Manage academic programs and semesters"
+   And I see a program table with column "Program"
+   And I see the hint "Select a program to manage semesters"
+   ```
+
+**Expected result:** Page shell matches Confluence Program Setup — UI Behavior layout.
+
+**Priority:** Medium
+
+**Maps to AC:** Navigate to program creation form (page context)
+
+---
+
+### TC-019 — New Program modal exposes AI generation defaults
+
+**Title:** Creation modal includes optional AI curriculum configuration with documented defaults
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Program creation form is open
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   When I click "+ New Program"
+   Then I see "Total Program Hours"
+   And I see "Default Session Hours" with default value "4"
+   And I see "Default Exam Hours" with default value "3"
+   And I see "Target Audience"
+   And I see "Focus Areas"
+   And I see "Sync/Async Ratio"
+   ```
+
+**Expected result:** AI generation fields visible with Confluence defaults (session 4h, exam 3h).
+
+**Priority:** Low
+
+**Note:** Not in DS-1 AC; discovered during MCP page exploration.
+
+---
+
+### TC-020 — Description exceeding maximum length is rejected
+
+**Title:** Program Description longer than 500 characters cannot be saved
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Max Description length is 500 characters (Confluence)
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   When I click "+ New Program"
+   And I fill in "Program Name" with a unique valid name
+   And I fill in "Description" with a 501-character string
+   And I click "Create"
+   Then the program creation modal remains open
+   And no new program appears in the program list
+   ```
+
+**Expected result:** Over-limit description rejected per Confluence validation rules.
+
+**Priority:** High
+
+---
+
+### TC-021 — Double-clicking Create creates exactly one program
+
+**Title:** Single user action on Create produces one program entry
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   When I click "+ New Program"
+   And I fill in "Program Name" with a unique name
+   And I fill in "Description" with any text
+   And I double-click "Create"
+   Then the modal closes
+   And the program list contains exactly one row for that program name
+   ```
+
+**Expected result:** Idempotent create — one program per submission action (DS-1 AC: successfully create a program).
+
+**Priority:** High
+
+**Bug found:** [DS-132](https://legionqaschool.atlassian.net/browse/DS-132) — double-click creates 2 rows (confirmed 2026-07-06).
+
+---
+
+### TC-022 — AI Generation Config section collapses and expands
+
+**Title:** Show/Hide toggle controls visibility of AI Generation Config fields
+
+**Preconditions:**
+
+- Admin user account exists
+- Admin is logged in
+- Program creation form is open
+
+**Steps:**
+
+1. ```gherkin
+   Given I am logged in as admin
+   And I am on the Programs page
+   When I click "+ New Program"
+   Then I see the button "Show AI Generation Config"
+   When I click "Show AI Generation Config"
+   Then I see the button "Hide AI Generation Config"
+   And I see "Total Program Hours"
+   When I click "Hide AI Generation Config"
+   Then I see the button "Show AI Generation Config"
+   ```
+
+**Expected result:** AI config block toggles per Confluence Form Layout (collapsible section).
+
+**Priority:** Low
+
+**Note:** Discovered during MCP exploration 2026-07-06; not in DS-1 AC.
+
+---
+
+## Bugs Logged (Jira sub-tasks of DS-1)
+
+| Key | Title | Test | Status |
+|---|---|---|---|
+| [DS-145](https://legionqaschool.atlassian.net/browse/DS-145) | Yaroslav - Duplicate program name allowed on create (no rejection) | `tests/ds1.spec.ts` TC-009 (line 270) | Open — **reconfirmed 2026-07-06** |
+| [DS-146](https://legionqaschool.atlassian.net/browse/DS-146) | Yaroslav - Case-variant duplicate program name allowed on create | `tests/ds1.spec.ts` TC-016 (line 372) | Open — **reconfirmed 2026-07-06** |
+| [DS-132](https://legionqaschool.atlassian.net/browse/DS-132) | Yaroslav - Double-clicking Create submits form twice and creates duplicate programs | `tests/ds1.spec.ts` TC-021 (line 440) | Open — **reconfirmed 2026-07-06** |
+
+**Evidence:**
+- `test-evidence/DS-1/yaroslav-bug-duplicate-name-tc009.png`
+- `test-evidence/DS-1/yaroslav-bug-case-duplicate-tc016.png`
+- `test-evidence/DS-1/yaroslav-bug-double-click-create.png`
+
+**Note:** Duplicate tests use a 1s post-POST settle wait in `expectDuplicateSubmissionRejected` to avoid false passes on a brief error flash before the duplicate row appears.
+
+---
+
 ## Coverage Summary
 
 | Acceptance Criteria | Test Case(s) |
 |---|---|
-| Navigate to program creation form | TC-001 |
-| Successfully create a program | TC-002 |
+| Navigate to program creation form | TC-001, TC-018 |
+| Successfully create a program | TC-002, TC-021 (TC-021 fails — bug DS-132) |
 | Validation prevents empty program name | TC-003, TC-005, TC-010, TC-017 |
 
-**Total test cases:** 17
+**Total test cases:** 22
 
 - Positive: 4
 - Negative: 5
-- Edge: 8
+- Edge: 13
 
 ---
 
@@ -528,11 +752,11 @@
 
 1. **Description required or optional?** AC lists Description on the form but only validates Program Name. TC-004 assumes Description is optional; confirm with product owner.
 
-2. **Max length limits** not specified for Program Name or Description. TC-013–TC-015 assume 255 / 2000 characters; replace with actual limits from spec or UI.
+2. **Max length limits** — Confluence specifies Name **100** / Description **500** characters. TC-013–TC-015 and TC-020 use these values; UI has no HTML `maxlength` attribute.
 
-3. **Duplicate name policy** not in AC. TC-009 and TC-016 assume duplicates are blocked; case sensitivity is undefined.
+3. **Duplicate name policy** not in AC but required by Confluence (unique per organization). TC-009 and TC-016 cover exact and case-variant duplicates.
 
-4. **Modal dismiss behavior** not specified (Cancel button, X, Escape, click outside). TC-008 assumes at least one dismiss path exists.
+4. **Modal dismiss behavior** — Cancel button and header X confirmed via MCP. TC-008 covers dismiss without save.
 
 5. **Success feedback** not defined — only "modal closes" and list update. No AC for toast, snackbar, or inline confirmation.
 
@@ -540,18 +764,20 @@
 
 7. **Trimming whitespace** in Program Name not specified. TC-010 assumes whitespace-only is invalid; leading/trailing trim on save is unclear.
 
-8. **Role model** beyond "admin" not defined. TC-006 assumes non-admin cannot create; other roles (super-admin, editor) not mentioned.
+8. **Role model** — Confluence lists Admin, Editor, Viewer; DS-1 AC only mentions admin. TC-006 assumes non-admin cannot create.
 
-9. **Direct URL / deep link** to creation form not covered in AC; access control for direct navigation unknown.
+9. **AI Generation Config fields** present in modal but not in DS-1 AC (TC-019).
 
-10. **Network/server errors** on Create not in AC — no expected behavior for 500, timeout, or offline.
+10. **Double-click idempotency** not in AC; TC-021 validates single program per Create action — **fails** (DS-132).
 
-11. **Concurrent creation** (two admins creating same name simultaneously) not addressed.
+11. **AI config collapsible toggle** (TC-022) present in UI but not in DS-1 AC.
 
-12. **Field-level validation messages** not specified — AC only states button disabled, not inline error text for empty name.
+12. **Direct URL / deep link** to creation form not covered in AC.
 
-13. **Description validation** (empty vs max length vs special characters/HTML injection) not in AC.
+13. **Network/server errors** on Create not in AC.
 
-14. **Accessibility** (keyboard navigation, focus trap in modal, ARIA labels) not mentioned.
+14. **Field-level validation messages** not specified — AC only states button disabled, not inline error text.
 
-15. **Localization** — whether field labels **Program Name** / **Description** are fixed English or i18n keys is unspecified.
+15. **Accessibility** (keyboard navigation, focus trap, ARIA) not mentioned.
+
+16. **Localization** — field labels appear fixed English in test environment.

@@ -1,4 +1,8 @@
+import dotenv from 'dotenv';
+import path from 'path';
 import { test, expect, type Dialog, type Page } from '@playwright/test';
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const BASE_URL = process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio';
 const ADMIN_EMAIL = process.env.DIDAXIS_EMAIL ?? '';
@@ -6,10 +10,15 @@ const ADMIN_PASSWORD = process.env.DIDAXIS_PASSWORD ?? '';
 const NON_ADMIN_EMAIL = process.env.DIDAXIS_NON_ADMIN_EMAIL ?? '';
 const NON_ADMIN_PASSWORD = process.env.DIDAXIS_NON_ADMIN_PASSWORD ?? '';
 
-const PROGRAM_NAME_MAX_LENGTH = 255;
+/** Confluence: Program Setup — Field Definitions */
+const PROGRAM_NAME_MAX_LENGTH = 100;
 
 function uniqueName(base: string): string {
   return `${base}-${Date.now()}`;
+}
+
+function newProgramButton(page: Page) {
+  return page.getByRole('button', { name: '+ New Program' });
 }
 
 function newProgramDialog(page: Page) {
@@ -30,6 +39,10 @@ function deleteButton(page: Page, programName: string) {
   return programRow(page, programName).getByRole('button', { name: `Delete ${programName}` });
 }
 
+function editButton(page: Page, programName: string) {
+  return programRow(page, programName).getByRole('button', { name: `Edit ${programName}` });
+}
+
 async function programRowCount(page: Page): Promise<number> {
   return page.locator('table tbody tr').count();
 }
@@ -48,7 +61,8 @@ async function loginAsAdmin(page: Page): Promise<void> {
 
 async function goToPrograms(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/programs`);
-  await expect(page.getByRole('button', { name: 'New Program' })).toBeVisible();
+  await expect(newProgramButton(page)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs', level: 2 })).toBeVisible();
   await expect(page.locator('table tbody')).toBeVisible({ timeout: 15_000 });
 }
 
@@ -57,7 +71,7 @@ async function createProgram(
   name: string,
   description?: string,
 ): Promise<void> {
-  await page.getByRole('button', { name: 'New Program' }).click();
+  await newProgramButton(page).click();
   const dialog = newProgramDialog(page);
   await expect(dialog).toBeVisible();
   await dialog.getByLabel('Program Name').fill(name);
@@ -69,12 +83,16 @@ async function createProgram(
   await expect(programRow(page, name)).toHaveCount(1, { timeout: 15_000 });
 }
 
+function expectedDeleteConfirmMessage(programName: string): string {
+  return `Delete program "${programName}"? All its semesters and courses will be removed. This cannot be undone.`;
+}
+
 async function expectConfirmDialogReferencesProgram(
   dialog: Dialog,
   programName: string,
 ): Promise<void> {
   expect(dialog.type()).toBe('confirm');
-  expect(dialog.message()).toContain(programName);
+  expect(dialog.message()).toBe(expectedDeleteConfirmMessage(programName));
 }
 
 async function handleDeleteConfirmation(
@@ -113,20 +131,6 @@ function deleteErrorLocator(page: Page) {
     .or(page.getByText(/could not be deleted|failed to delete|unable to delete|something went wrong/i));
 }
 
-async function expectFailedDeleteAttempt(
-  page: Page,
-  programName: string,
-  deleteResponseStatus: number,
-): Promise<void> {
-  expect(deleteResponseStatus).toBeGreaterThanOrEqual(400);
-  await expect(programInList(page, programName)).toBeVisible({ timeout: 15_000 });
-
-  const errorVisible = await deleteErrorLocator(page).isVisible().catch(() => false);
-  if (!errorVisible) {
-    expect(deleteResponseStatus).toBeGreaterThanOrEqual(400);
-  }
-}
-
 test.beforeEach(async () => {
   test.skip(
     !ADMIN_EMAIL || !ADMIN_PASSWORD,
@@ -148,6 +152,7 @@ test.describe('Positive flows', () => {
 
     await createProgram(page, programName, description);
     await expect(programInList(page, programName)).toBeVisible();
+    await expect(editButton(page, programName)).toBeVisible();
 
     await confirmDeletion(page, programName);
   });
@@ -227,7 +232,9 @@ test.describe('Negative flows', () => {
     await handleDeleteConfirmation(page, programName, 'accept');
 
     const deleteResponse = await deleteResponsePromise;
-    await expectFailedDeleteAttempt(page, programName, deleteResponse.status());
+    expect(deleteResponse.status()).toBeGreaterThanOrEqual(400);
+    await expect(programInList(page, programName)).toBeVisible({ timeout: 15_000 });
+    await expect(deleteErrorLocator(page)).toBeVisible({ timeout: 15_000 });
   });
 });
 
@@ -278,18 +285,15 @@ test.describe('Edge cases', () => {
 
     await expect(page.locator('table tbody tr')).toHaveCount(0);
     await expect(
-      page.getByText(/no programs|empty|get started|create your first/i),
+      page.getByText('No programs yet. Create your first program to get started.'),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New Program' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Create Program' })).toBeEnabled();
   });
 
-  test('TC-009: Dismissing the confirmation dialog without confirming preserves the program', async ({
-    page,
-  }) => {
+  test('TC-009: Cancel via native confirm dismiss preserves the program', async ({ page }) => {
     const programName = uniqueName('Cybersecurity Essentials');
 
     await createProgram(page, programName, 'Intro to cybersecurity');
-
     await cancelDeletion(page, programName);
     await cancelDeletion(page, programName);
   });
@@ -302,6 +306,44 @@ test.describe('Edge cases', () => {
     expect(programName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
     await createProgram(page, programName, 'Max length deletion test');
+    await confirmDeletion(page, programName);
+  });
+
+  test('TC-011: Delete confirmation dialog displays Confluence warning text', async ({ page }) => {
+    const programName = uniqueName('Confirm Message Check');
+
+    await createProgram(page, programName, 'Verify native confirm message');
+
+    page.once('dialog', async (dialog) => {
+      await expectConfirmDialogReferencesProgram(dialog, programName);
+      await dialog.dismiss();
+    });
+    await deleteButton(page, programName).click();
+    await expect(programInList(page, programName)).toBeVisible();
+
+    await confirmDeletion(page, programName);
+  });
+
+  test('TC-012: Double-clicking delete icon opens a single confirmation dialog', async ({
+    page,
+  }) => {
+    const programName = uniqueName('Double Delete Test');
+
+    await createProgram(page, programName, 'Double-click delete guard');
+
+    let dialogCount = 0;
+    page.on('dialog', async (dialog) => {
+      dialogCount += 1;
+      await dialog.dismiss();
+    });
+
+    await deleteButton(page, programName).dblclick();
+    await page.waitForTimeout(1_000);
+
+    expect(dialogCount).toBe(1);
+    await expect(programInList(page, programName)).toBeVisible();
+
+    page.off('dialog');
     await confirmDeletion(page, programName);
   });
 });
