@@ -1,8 +1,38 @@
 import { test as base, expect, type APIRequestContext } from '@playwright/test';
 
-const API_BASE = process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio';
+const API_BASE = (process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio').replace(
+  /\/$/,
+  '',
+);
 
 type TrackProgram = (uuid: string) => void;
+
+/** Extract program UUID from create/list API payloads. */
+export function extractProgramId(body: unknown): string {
+  const record = body as Record<string, unknown> | null;
+  const data = record?.data as Record<string, unknown> | string | undefined;
+  const fromData =
+    data && typeof data === 'object'
+      ? (data.id ?? data.uuid)
+      : typeof data === 'string'
+        ? data
+        : undefined;
+  const id = fromData ?? record?.id ?? record?.uuid;
+  if (typeof id !== 'string' || !id.trim()) {
+    throw new Error(`Program response missing id: ${JSON.stringify(body)}`);
+  }
+  return id;
+}
+
+function isProgramCreateResponse(url: string, method: string): boolean {
+  if (method !== 'POST') return false;
+  try {
+    const pathname = new URL(url).pathname.replace(/\/$/, '');
+    return pathname.endsWith('/api/programs');
+  } catch {
+    return url.includes('/api/programs') && !url.includes('/api/programs/');
+  }
+}
 
 async function loginForToken(request: APIRequestContext): Promise<string> {
   const email = process.env.DIDAXIS_EMAIL ?? '';
@@ -49,34 +79,74 @@ async function resolveAuthToken(request: APIRequestContext): Promise<string> {
   return loginForToken(request);
 }
 
-export const test = base.extend<{ trackProgram: TrackProgram }>({
-  trackProgram: async ({ request }, use) => {
-    const tracked: string[] = [];
+async function deleteTrackedPrograms(
+  request: APIRequestContext,
+  tracked: string[],
+): Promise<void> {
+  if (tracked.length === 0) {
+    return;
+  }
 
-    await use((uuid: string) => {
-      if (uuid && !tracked.includes(uuid)) {
-        tracked.push(uuid);
-      }
+  const token = await resolveAuthToken(request);
+  const failures: string[] = [];
+  for (const uuid of tracked) {
+    const response = await request.delete(`${API_BASE}/api/programs/${uuid}`, {
+      headers: { Authorization: `Bearer ${token}` },
     });
+    if (!response.ok() && response.status() !== 404) {
+      failures.push(`${uuid}: ${response.status()} ${await response.text()}`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`Program cleanup failed:\n${failures.join('\n')}`);
+  }
+}
 
-    if (tracked.length === 0) {
-      return;
-    }
+export const test = base.extend<{ trackProgram: TrackProgram }>({
+  // auto: true so cleanup runs even when the test does not destructure trackProgram
+  trackProgram: [
+    async ({ page, request }, use) => {
+      const tracked: string[] = [];
+      const pendingCaptures: Promise<void>[] = [];
 
-    const token = await resolveAuthToken(request);
-    const failures: string[] = [];
-    for (const uuid of tracked) {
-      const response = await request.delete(`${API_BASE}/api/programs/${uuid}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok() && response.status() !== 404) {
-        failures.push(`${uuid}: ${response.status()} ${await response.text()}`);
-      }
-    }
-    if (failures.length > 0) {
-      throw new Error(`Program cleanup failed:\n${failures.join('\n')}`);
-    }
-  },
+      const track = (uuid: string) => {
+        if (!uuid) {
+          throw new Error('trackProgram called with an empty program id');
+        }
+        if (!tracked.includes(uuid)) {
+          tracked.push(uuid);
+        }
+      };
+
+      const onResponse = (response: import('@playwright/test').Response) => {
+        if (!isProgramCreateResponse(response.url(), response.request().method())) {
+          return;
+        }
+        if (!response.ok()) {
+          return;
+        }
+
+        const capture = (async () => {
+          try {
+            const body = await response.json();
+            track(extractProgramId(body));
+          } catch {
+            // Ignore unreadable/non-create payloads; explicit trackProgram still works.
+          }
+        })();
+        pendingCaptures.push(capture);
+      };
+
+      page.on('response', onResponse);
+
+      await use(track);
+
+      page.off('response', onResponse);
+      await Promise.all(pendingCaptures);
+      await deleteTrackedPrograms(request, tracked);
+    },
+    { auto: true },
+  ],
 });
 
 export { expect };
