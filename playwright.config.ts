@@ -8,6 +8,9 @@ import dotenv from 'dotenv';
 import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
+// Local .ts fixture imports need PLAYWRIGHT_FORCE_ASYNC_LOADER=1 on Node 22.15
+// (see package.json scripts). Setting it here is too late for the sync loader.
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */

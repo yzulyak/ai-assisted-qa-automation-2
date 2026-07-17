@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { test, expect, type Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
+import { test, expect } from '../fixtures/cleanup.fixture';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -64,6 +65,20 @@ function programRowsWithName(page: Page, name: string) {
   return programRow(page, name);
 }
 
+function waitForProgramCreate(page: Page) {
+  return page.waitForResponse(
+    (res) =>
+      res.url().includes('/api/programs') &&
+      res.request().method() === 'POST' &&
+      res.ok(),
+  );
+}
+
+async function programIdFromResponse(response: Response): Promise<string> {
+  const body = await response.json();
+  return body.data.id;
+}
+
 function duplicateErrorLocator(page: Page) {
   return editProgramDialog(page).getByText(/already exists|name.*taken|already been used|duplicate/i);
 }
@@ -91,7 +106,8 @@ async function createProgram(
   page: Page,
   name: string,
   description?: string,
-): Promise<void> {
+): Promise<string> {
+  const createResponsePromise = waitForProgramCreate(page);
   await newProgramButton(page).click();
   const dialog = newProgramDialog(page);
   await expect(dialog).toBeVisible();
@@ -102,6 +118,7 @@ async function createProgram(
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
   await expect(programRow(page, name)).toHaveCount(1, { timeout: 15_000 });
+  return programIdFromResponse(await createResponsePromise);
 }
 
 async function openEditModal(page: Page, programName: string): Promise<void> {
@@ -167,11 +184,11 @@ test.describe('Positive flows', () => {
     await goToPrograms(page);
   });
 
-  test('TC-001: Edit form displays current program data on open', async ({ page }) => {
+  test('TC-001: Edit form displays current program data on open', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
 
     await expect(programNameField(page)).toHaveValue(programName);
@@ -180,12 +197,12 @@ test.describe('Positive flows', () => {
     await expect(cancelButton(page)).toBeVisible();
   });
 
-  test('TC-002: Program name update is saved and reflected in the list', async ({ page }) => {
+  test('TC-002: Program name update is saved and reflected in the list', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const updatedName = `${programName} - Updated`;
     const description = 'Full-stack web development program';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
     await programNameField(page).fill(updatedName);
     await saveButton(page).click();
@@ -195,14 +212,12 @@ test.describe('Positive flows', () => {
     await expect(programInList(page, programName)).not.toBeVisible();
   });
 
-  test('TC-003: Unchanged fields are preserved when only Description is edited', async ({
-    page,
-  }) => {
+  test('TC-003: Unchanged fields are preserved when only Description is edited', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const originalDescription = 'Full-stack web development program';
     const updatedDescription = 'Updated full-stack curriculum for 2026';
 
-    await createProgram(page, programName, originalDescription);
+    trackProgram(await createProgram(page, programName, originalDescription));
     await openEditModal(page, programName);
     await descriptionField(page).fill(updatedDescription);
     await saveButton(page).click();
@@ -215,11 +230,11 @@ test.describe('Positive flows', () => {
     await expect(descriptionField(page)).toHaveValue(updatedDescription);
   });
 
-  test('TC-004: Save succeeds when no field values are changed', async ({ page }) => {
+  test('TC-004: Save succeeds when no field values are changed', async ({ page, trackProgram }) => {
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'Intro to cloud platforms and services';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
     await saveButton(page).click();
 
@@ -233,14 +248,14 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-005: Program is not updated when Program Name is cleared', async ({ page }) => {
+  test('TC-005: Program is not updated when Program Name is cleared', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
     await programNameField(page).clear();
 
@@ -254,14 +269,14 @@ test.describe('Negative flows', () => {
     await expect(descriptionField(page)).toHaveValue(description);
   });
 
-  test('TC-006: Dismissing the edit modal does not persist changes', async ({ page }) => {
+  test('TC-006: Dismissing the edit modal does not persist changes', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Cybersecurity Basics');
     const description = 'Intro to security concepts';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
     await programNameField(page).fill('Cybersecurity Advanced');
     await descriptionField(page).fill('Should not be saved');
@@ -298,15 +313,15 @@ test.describe('Negative flows', () => {
     await expect(editProgramDialog(page)).not.toBeVisible();
   });
 
-  test('TC-009: Renaming a program to an existing name is rejected', async ({ page }) => {
+  test('TC-009: Renaming a program to an existing name is rejected', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const firstName = uniqueName('Web Development 2026');
     const secondName = uniqueName('Data Science Fundamentals');
 
-    await createProgram(page, firstName, 'Full-stack web development program');
-    await createProgram(page, secondName, 'Foundations of data science');
+    trackProgram(await createProgram(page, firstName, 'Full-stack web development program'));
+    trackProgram(await createProgram(page, secondName, 'Foundations of data science'));
 
     await openEditModal(page, firstName);
     await programNameField(page).fill(secondName);
@@ -319,15 +334,13 @@ test.describe('Negative flows', () => {
     await expect(programInList(page, secondName)).toBeVisible();
   });
 
-  test('TC-010: Failed edit attempt does not create a duplicate program entry', async ({
-    page,
-  }) => {
+  test('TC-010: Failed edit attempt does not create a duplicate program entry', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Mobile App Development');
 
-    await createProgram(page, programName, 'iOS and Android development');
+    trackProgram(await createProgram(page, programName, 'iOS and Android development'));
     await openEditModal(page, programName);
     await programNameField(page).clear();
 
@@ -345,10 +358,10 @@ test.describe('Edge cases', () => {
     await goToPrograms(page);
   });
 
-  test('TC-011: Whitespace-only Program Name is treated as invalid on edit', async ({ page }) => {
+  test('TC-011: Whitespace-only Program Name is treated as invalid on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
     await programNameField(page).fill('   ');
 
@@ -356,13 +369,11 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, programName)).toBeVisible();
   });
 
-  test('TC-012: Edited Program Name with special characters is saved and displayed correctly', async ({
-    page,
-  }) => {
+  test('TC-012: Edited Program Name with special characters is saved and displayed correctly', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const specialName = uniqueName('AI & ML (2026) — Cohort #1');
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
     await programNameField(page).fill(specialName);
     await saveButton(page).click();
@@ -371,13 +382,11 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, specialName)).toBeVisible();
   });
 
-  test('TC-013: Program Name can be edited to a single non-whitespace character', async ({
-    page,
-  }) => {
+  test('TC-013: Program Name can be edited to a single non-whitespace character', async ({ page, trackProgram }) => {
     const programName = uniqueName('Temporary Program');
     const singleCharName = String.fromCharCode(65 + (Date.now() % 26));
 
-    await createProgram(page, programName, 'Boundary test program');
+    trackProgram(await createProgram(page, programName, 'Boundary test program'));
     await openEditModal(page, programName);
     await programNameField(page).fill(singleCharName);
     await saveButton(page).click();
@@ -386,13 +395,13 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, singleCharName)).toBeVisible();
   });
 
-  test('TC-014: Program Name at maximum allowed length is accepted on edit', async ({ page }) => {
+  test('TC-014: Program Name at maximum allowed length is accepted on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const suffix = Date.now().toString();
     const maxName = `${'B'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
     expect(maxName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
     await programNameField(page).fill(maxName);
     await saveButton(page).click();
@@ -401,15 +410,13 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, maxName)).toBeVisible();
   });
 
-  test('TC-015: Program Name exceeding maximum length is rejected or blocked on edit', async ({
-    page,
-  }) => {
+  test('TC-015: Program Name exceeding maximum length is rejected or blocked on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const suffix = Date.now().toString();
     const overMaxName = `${'B'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH + 1 - suffix.length))}${suffix}`;
     expect(overMaxName.length).toBe(PROGRAM_NAME_MAX_LENGTH + 1);
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
     await programNameField(page).fill(overMaxName);
 
@@ -443,11 +450,11 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, programName)).toBeVisible();
   });
 
-  test('TC-016: Description at maximum allowed length is saved on edit', async ({ page }) => {
+  test('TC-016: Description at maximum allowed length is saved on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'D'.repeat(DESCRIPTION_MAX_LENGTH);
 
-    await createProgram(page, programName, 'Intro to cloud platforms');
+    trackProgram(await createProgram(page, programName, 'Intro to cloud platforms'));
     await openEditModal(page, programName);
     await descriptionField(page).fill(description);
     await saveButton(page).click();
@@ -457,15 +464,13 @@ test.describe('Edge cases', () => {
     await expect(descriptionField(page)).toHaveValue(description);
   });
 
-  test('TC-017: Duplicate Program Name check is case-insensitive on edit (if applicable)', async ({
-    page,
-  }) => {
+  test('TC-017: Duplicate Program Name check is case-insensitive on edit (if applicable)', async ({ page, trackProgram }) => {
     const firstName = uniqueName('Web Development 2026');
     const secondName = uniqueName('Data Science Fundamentals');
     const duplicateAttempt = secondName.toLowerCase();
 
-    await createProgram(page, firstName, 'Full-stack web development program');
-    await createProgram(page, secondName, 'Foundations of data science');
+    trackProgram(await createProgram(page, firstName, 'Full-stack web development program'));
+    trackProgram(await createProgram(page, secondName, 'Foundations of data science'));
 
     await openEditModal(page, firstName);
     await programNameField(page).fill(duplicateAttempt);
@@ -477,12 +482,10 @@ test.describe('Edge cases', () => {
     await expect(programRowsWithName(page, secondName)).toHaveCount(1);
   });
 
-  test('TC-018: Save button state updates dynamically when Program Name is edited', async ({
-    page,
-  }) => {
+  test('TC-018: Save button state updates dynamically when Program Name is edited', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
 
     await expect(saveButton(page)).toBeEnabled();
@@ -497,11 +500,11 @@ test.describe('Edge cases', () => {
     await expect(saveButton(page)).toBeDisabled();
   });
 
-  test('TC-019: Description can be cleared to empty on edit', async ({ page }) => {
+  test('TC-019: Description can be cleared to empty on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Data Science Fundamentals');
     const description = 'Foundations of data science';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await openEditModal(page, programName);
     await descriptionField(page).clear();
     await saveButton(page).click();
@@ -514,10 +517,10 @@ test.describe('Edge cases', () => {
     await expect(descriptionField(page)).toHaveValue('');
   });
 
-  test('TC-020: Edit modal exposes AI Generation Config section', async ({ page }) => {
+  test('TC-020: Edit modal exposes AI Generation Config section', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
 
-    await createProgram(page, programName, 'Full-stack web development program');
+    trackProgram(await createProgram(page, programName, 'Full-stack web development program'));
     await openEditModal(page, programName);
 
     await expect(editProgramDialog(page).getByText('Program Name *')).toBeVisible();
@@ -526,11 +529,11 @@ test.describe('Edge cases', () => {
     ).toBeVisible();
   });
 
-  test('TC-021: Description exceeding maximum length is rejected on edit', async ({ page }) => {
+  test('TC-021: Description exceeding maximum length is rejected on edit', async ({ page, trackProgram }) => {
     const programName = uniqueName('Cloud Computing 2026');
     const overMaxDescription = 'D'.repeat(DESCRIPTION_MAX_LENGTH + 1);
 
-    await createProgram(page, programName, 'Intro to cloud platforms');
+    trackProgram(await createProgram(page, programName, 'Intro to cloud platforms'));
     await openEditModal(page, programName);
     await descriptionField(page).fill(overMaxDescription);
     await saveButton(page).click();

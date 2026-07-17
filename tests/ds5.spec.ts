@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { test, expect, type Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
+import { test, expect } from '../fixtures/cleanup.fixture';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -80,6 +81,20 @@ async function programRowCount(page: Page): Promise<number> {
   return page.locator('table tbody tr').count();
 }
 
+function waitForProgramCreate(page: Page) {
+  return page.waitForResponse(
+    (res) =>
+      res.url().includes('/api/programs') &&
+      res.request().method() === 'POST' &&
+      res.ok(),
+  );
+}
+
+async function programIdFromResponse(response: Response): Promise<string> {
+  const body = await response.json();
+  return body.data.id;
+}
+
 async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto(`${BASE_URL}/login`);
   await page.getByLabel('Email').fill(email);
@@ -109,7 +124,8 @@ async function createProgram(
   page: Page,
   name: string,
   description?: string,
-): Promise<void> {
+): Promise<string> {
+  const createResponsePromise = waitForProgramCreate(page);
   await openNewProgramModal(page);
   await programNameField(page).fill(name);
   if (description !== undefined) {
@@ -118,6 +134,7 @@ async function createProgram(
   await createButton(page).click();
   await expect(newProgramDialog(page)).not.toBeVisible({ timeout: 15_000 });
   await expect(programInList(page, name)).toBeVisible({ timeout: 15_000 });
+  return programIdFromResponse(await createResponsePromise);
 }
 
 async function expectProgramRowShowsNameAndDescription(
@@ -161,7 +178,7 @@ test.beforeEach(async () => {
 test.setTimeout(90_000);
 
 test.describe('Positive flows', () => {
-  test('TC-001: Each program in the list displays its name and description', async ({ page }) => {
+  test('TC-001: Each program in the list displays its name and description', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
@@ -181,7 +198,7 @@ test.describe('Positive flows', () => {
     ];
 
     for (const program of programs) {
-      await createProgram(page, program.name, program.description);
+      trackProgram(await createProgram(page, program.name, program.description));
     }
 
     await expect(page.locator('table tbody')).toBeVisible();
@@ -214,21 +231,21 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-003: Empty state is not shown when programs exist', async ({ page }) => {
+  test('TC-003: Empty state is not shown when programs exist', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Cybersecurity Essentials');
     const description = 'Foundational cybersecurity training';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
 
     await expect(page.locator('table tbody')).toBeVisible();
     await expectProgramRowShowsNameAndDescription(page, programName, description);
     await expect(emptyStateMessage(page)).not.toBeVisible();
   });
 
-  test('TC-004: Non-admin user cannot view the admin program list', async ({ page }) => {
+  test('TC-004: Non-admin user cannot view the admin program list', async ({ page, trackProgram }) => {
     test.skip(
       !NON_ADMIN_EMAIL || !NON_ADMIN_PASSWORD,
       'Set DIDAXIS_NON_ADMIN_EMAIL and DIDAXIS_NON_ADMIN_PASSWORD in .env',
@@ -238,7 +255,7 @@ test.describe('Negative flows', () => {
 
     await loginAsAdmin(page);
     await goToPrograms(page);
-    await createProgram(page, programName, 'iOS and Android development');
+    trackProgram(await createProgram(page, programName, 'iOS and Android development'));
 
     await login(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD);
     await page.goto(`${BASE_URL}/programs`);
@@ -258,12 +275,12 @@ test.describe('Negative flows', () => {
     }
   });
 
-  test('TC-005: Server error on load does not display the empty state', async ({ page }) => {
+  test('TC-005: Server error on load does not display the empty state', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Server Error Seed Program');
-    await createProgram(page, programName, 'Program used to seed list before simulated API failure');
+    trackProgram(await createProgram(page, programName, 'Program used to seed list before simulated API failure'));
 
     await page.route('**/*', async (route) => {
       const request = route.request();
@@ -285,14 +302,14 @@ test.describe('Negative flows', () => {
     await expect(programInList(page, programName)).not.toBeVisible();
   });
 
-  test('TC-006: Program list does not display unrelated or internal fields', async ({ page }) => {
+  test('TC-006: Program list does not display unrelated or internal fields', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Test Program');
     const description = 'Sample program for list display testing';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
 
     const row = programRow(page, programName);
     await expect(row.getByText(programName, { exact: true })).toBeVisible();
@@ -312,13 +329,11 @@ test.describe('Edge cases', () => {
     await goToPrograms(page);
   });
 
-  test('TC-007: Special characters in name and description render correctly in the list', async ({
-    page,
-  }) => {
+  test('TC-007: Special characters in name and description render correctly in the list', async ({ page, trackProgram }) => {
     const programName = uniqueName('Informatique & IA - Niveau 2');
     const description = 'Parcours avancé — IA & data (2026)';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await expectProgramRowShowsNameAndDescription(page, programName, description);
 
     const rowText = await programRow(page, programName).innerText();
@@ -328,13 +343,13 @@ test.describe('Edge cases', () => {
     expect(rowText).not.toMatch(/&amp;|&lt;|&gt;/);
   });
 
-  test('TC-008: Maximum-length program name displays correctly in the list', async ({ page }) => {
+  test('TC-008: Maximum-length program name displays correctly in the list', async ({ page, trackProgram }) => {
     const programName = maxLengthProgramName();
     const description = 'Max-length name display test';
 
     expect(programName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
 
     const row = programRow(page, programName);
     await expect(row).toHaveCount(1);
@@ -355,12 +370,10 @@ test.describe('Edge cases', () => {
     await expectNoHorizontalLayoutBreak(page);
   });
 
-  test('TC-009: Program with empty description still appears in the list with its name', async ({
-    page,
-  }) => {
+  test('TC-009: Program with empty description still appears in the list with its name', async ({ page, trackProgram }) => {
     const programName = uniqueName('Standalone Certificate');
 
-    await createProgram(page, programName, '');
+    trackProgram(await createProgram(page, programName, ''));
 
     const row = programRow(page, programName);
     await expect(row).toHaveCount(1);
@@ -370,11 +383,11 @@ test.describe('Edge cases', () => {
     expect(rowText).toMatch(/^$|^—$|^-+$|No description/i);
   });
 
-  test('TC-010: Long description displays without breaking list layout', async ({ page }) => {
+  test('TC-010: Long description displays without breaking list layout', async ({ page, trackProgram }) => {
     const programName = uniqueName('Technical Writing Workshop');
     expect(LONG_DESCRIPTION.length).toBeGreaterThanOrEqual(500);
 
-    await createProgram(page, programName, LONG_DESCRIPTION);
+    trackProgram(await createProgram(page, programName, LONG_DESCRIPTION));
 
     const row = programRow(page, programName);
     await expect(row.getByText(programName, { exact: true })).toBeVisible();
@@ -387,9 +400,7 @@ test.describe('Edge cases', () => {
     await expectNoHorizontalLayoutBreak(page);
   });
 
-  test('TC-011: Multiple programs with similar names are displayed as distinct list entries', async ({
-    page,
-  }) => {
+  test('TC-011: Multiple programs with similar names are displayed as distinct list entries', async ({ page, trackProgram }) => {
     const programs = [
       { name: uniqueName('Test Program'), description: 'Baseline test program' },
       { name: uniqueName('Test Program Advanced'), description: 'Advanced test program track' },
@@ -397,7 +408,7 @@ test.describe('Edge cases', () => {
     ];
 
     for (const program of programs) {
-      await createProgram(page, program.name, program.description);
+      trackProgram(await createProgram(page, program.name, program.description));
     }
 
     for (const program of programs) {
@@ -411,7 +422,7 @@ test.describe('Edge cases', () => {
     expect(seededProgramCount).toBe(3);
   });
 
-  test('TC-012: Page refresh preserves the program list content', async ({ page }) => {
+  test('TC-012: Page refresh preserves the program list content', async ({ page, trackProgram }) => {
     const programs = [
       { name: uniqueName('Web Development 2026'), description: 'Full-stack web development program' },
       {
@@ -421,7 +432,7 @@ test.describe('Edge cases', () => {
     ];
 
     for (const program of programs) {
-      await createProgram(page, program.name, program.description);
+      trackProgram(await createProgram(page, program.name, program.description));
     }
 
     await page.reload();
@@ -447,11 +458,11 @@ test.describe('Edge cases', () => {
     await expect(page.getByText('Select a program to manage semesters')).toBeVisible();
   });
 
-  test('TC-014: Program row exposes Edit and Delete action buttons', async ({ page }) => {
+  test('TC-014: Program row exposes Edit and Delete action buttons', async ({ page, trackProgram }) => {
     const programName = uniqueName('Action Buttons Program');
     const description = 'Verify row-level management actions are visible';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
 
     const row = programRow(page, programName);
     await expect(row.getByRole('button', { name: `Edit ${programName}` })).toBeVisible();

@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import { test, expect, type Dialog, type Page } from '@playwright/test';
+import type { Dialog, Page, Response } from '@playwright/test';
+import { test, expect } from '../fixtures/cleanup.fixture';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -47,6 +48,20 @@ async function programRowCount(page: Page): Promise<number> {
   return page.locator('table tbody tr').count();
 }
 
+function waitForProgramCreate(page: Page) {
+  return page.waitForResponse(
+    (res) =>
+      res.url().includes('/api/programs') &&
+      res.request().method() === 'POST' &&
+      res.ok(),
+  );
+}
+
+async function programIdFromResponse(response: Response): Promise<string> {
+  const body = await response.json();
+  return body.data.id;
+}
+
 async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto(`${BASE_URL}/login`);
   await page.getByLabel('Email').fill(email);
@@ -70,7 +85,8 @@ async function createProgram(
   page: Page,
   name: string,
   description?: string,
-): Promise<void> {
+): Promise<string> {
+  const createResponsePromise = waitForProgramCreate(page);
   await newProgramButton(page).click();
   const dialog = newProgramDialog(page);
   await expect(dialog).toBeVisible();
@@ -81,6 +97,7 @@ async function createProgram(
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
   await expect(programRow(page, name)).toHaveCount(1, { timeout: 15_000 });
+  return programIdFromResponse(await createResponsePromise);
 }
 
 function expectedDeleteConfirmMessage(programName: string): string {
@@ -146,37 +163,35 @@ test.describe('Positive flows', () => {
     await goToPrograms(page);
   });
 
-  test('TC-001: Confirmed deletion removes program from the list', async ({ page }) => {
+  test('TC-001: Confirmed deletion removes program from the list', async ({ page, trackProgram }) => {
     const programName = uniqueName('Test Program');
     const description = 'Sample program for deletion testing';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await expect(programInList(page, programName)).toBeVisible();
     await expect(editButton(page, programName)).toBeVisible();
 
     await confirmDeletion(page, programName);
   });
 
-  test('TC-002: Cancel on confirmation dialog preserves the program in the list', async ({
-    page,
-  }) => {
+  test('TC-002: Cancel on confirmation dialog preserves the program in the list', async ({ page, trackProgram }) => {
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await cancelDeletion(page, programName);
   });
 });
 
 test.describe('Negative flows', () => {
-  test('TC-003: Delete icon does not remove the program before confirmation', async ({ page }) => {
+  test('TC-003: Delete icon does not remove the program before confirmation', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Data Science Fundamentals');
     const description = 'Introductory data science curriculum';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await expect(programInList(page, programName)).toBeVisible();
 
     await handleDeleteConfirmation(page, programName, 'dismiss');
@@ -184,7 +199,7 @@ test.describe('Negative flows', () => {
     await expect(successToastLocator(page)).not.toBeVisible();
   });
 
-  test('TC-004: Non-admin user cannot delete a program', async ({ page }) => {
+  test('TC-004: Non-admin user cannot delete a program', async ({ page, trackProgram }) => {
     test.skip(
       !NON_ADMIN_EMAIL || !NON_ADMIN_PASSWORD,
       'Set DIDAXIS_NON_ADMIN_EMAIL and DIDAXIS_NON_ADMIN_PASSWORD in .env',
@@ -194,7 +209,7 @@ test.describe('Negative flows', () => {
 
     await loginAsAdmin(page);
     await goToPrograms(page);
-    await createProgram(page, programName, 'Intro to cloud computing');
+    trackProgram(await createProgram(page, programName, 'Intro to cloud computing'));
 
     await login(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD);
     await goToPrograms(page);
@@ -204,13 +219,13 @@ test.describe('Negative flows', () => {
     await expect(page.getByRole('button', { name: /^Delete / })).not.toBeVisible();
   });
 
-  test('TC-005: Failed server-side deletion keeps the program in the list', async ({ page }) => {
+  test('TC-005: Failed server-side deletion keeps the program in the list', async ({ page, trackProgram }) => {
     await loginAsAdmin(page);
     await goToPrograms(page);
 
     const programName = uniqueName('Mobile App Development');
 
-    await createProgram(page, programName, 'iOS and Android development');
+    trackProgram(await createProgram(page, programName, 'iOS and Android development'));
 
     await page.route('**/*', async (route) => {
       if (route.request().method() === 'DELETE') {
@@ -244,26 +259,22 @@ test.describe('Edge cases', () => {
     await goToPrograms(page);
   });
 
-  test('TC-006: Program with special characters in name is deleted after confirmation', async ({
-    page,
-  }) => {
+  test('TC-006: Program with special characters in name is deleted after confirmation', async ({ page, trackProgram }) => {
     const programName = uniqueName('Informatique & IA - Niveau 2');
     const description = 'Advanced informatics and AI track';
 
-    await createProgram(page, programName, description);
+    trackProgram(await createProgram(page, programName, description));
     await confirmDeletion(page, programName);
   });
 
-  test('TC-007: Only the targeted program is removed when multiple programs exist', async ({
-    page,
-  }) => {
+  test('TC-007: Only the targeted program is removed when multiple programs exist', async ({ page, trackProgram }) => {
     const targetName = uniqueName('Test Program');
     const advancedName = uniqueName('Test Program Advanced');
     const basicsName = uniqueName('Test Program Basics');
 
-    await createProgram(page, targetName, 'Target for deletion');
-    await createProgram(page, advancedName, 'Advanced track');
-    await createProgram(page, basicsName, 'Basics track');
+    trackProgram(await createProgram(page, targetName, 'Target for deletion'));
+    trackProgram(await createProgram(page, advancedName, 'Advanced track'));
+    trackProgram(await createProgram(page, basicsName, 'Basics track'));
 
     await confirmDeletion(page, targetName);
 
@@ -271,11 +282,11 @@ test.describe('Edge cases', () => {
     await expect(programInList(page, basicsName)).toBeVisible();
   });
 
-  test('TC-008: Deleting the sole program shows an empty program list state', async ({ page }) => {
+  test('TC-008: Deleting the sole program shows an empty program list state', async ({ page, trackProgram }) => {
     const programName = uniqueName('Standalone Program');
     const rowsBefore = await programRowCount(page);
 
-    await createProgram(page, programName, 'Only program for empty-state test');
+    trackProgram(await createProgram(page, programName, 'Only program for empty-state test'));
 
     const rowsAfterCreate = await programRowCount(page);
     const isOnlyProgram = rowsBefore === 0 && rowsAfterCreate === 1;
@@ -290,29 +301,27 @@ test.describe('Edge cases', () => {
     await expect(page.getByRole('button', { name: 'Create Program' })).toBeEnabled();
   });
 
-  test('TC-009: Cancel via native confirm dismiss preserves the program', async ({ page }) => {
+  test('TC-009: Cancel via native confirm dismiss preserves the program', async ({ page, trackProgram }) => {
     const programName = uniqueName('Cybersecurity Essentials');
 
-    await createProgram(page, programName, 'Intro to cybersecurity');
+    trackProgram(await createProgram(page, programName, 'Intro to cybersecurity'));
     await cancelDeletion(page, programName);
     await cancelDeletion(page, programName);
   });
 
-  test('TC-010: Program with maximum-length name is deleted after confirmation', async ({
-    page,
-  }) => {
+  test('TC-010: Program with maximum-length name is deleted after confirmation', async ({ page, trackProgram }) => {
     const suffix = Date.now().toString();
     const programName = `${'A'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
     expect(programName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    await createProgram(page, programName, 'Max length deletion test');
+    trackProgram(await createProgram(page, programName, 'Max length deletion test'));
     await confirmDeletion(page, programName);
   });
 
-  test('TC-011: Delete confirmation dialog displays Confluence warning text', async ({ page }) => {
+  test('TC-011: Delete confirmation dialog displays Confluence warning text', async ({ page, trackProgram }) => {
     const programName = uniqueName('Confirm Message Check');
 
-    await createProgram(page, programName, 'Verify native confirm message');
+    trackProgram(await createProgram(page, programName, 'Verify native confirm message'));
 
     page.once('dialog', async (dialog) => {
       await expectConfirmDialogReferencesProgram(dialog, programName);
@@ -324,12 +333,10 @@ test.describe('Edge cases', () => {
     await confirmDeletion(page, programName);
   });
 
-  test('TC-012: Double-clicking delete icon opens a single confirmation dialog', async ({
-    page,
-  }) => {
+  test('TC-012: Double-clicking delete icon opens a single confirmation dialog', async ({ page, trackProgram }) => {
     const programName = uniqueName('Double Delete Test');
 
-    await createProgram(page, programName, 'Double-click delete guard');
+    trackProgram(await createProgram(page, programName, 'Double-click delete guard'));
 
     let dialogCount = 0;
     page.on('dialog', async (dialog) => {
