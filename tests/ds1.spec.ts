@@ -5,6 +5,7 @@ import { test, expect, extractProgramId } from '../fixtures/cleanup.fixture';
 import { ProgramsPage } from '../pages/ProgramsPage';
 import { LoginPage } from '../pages/LoginPage';
 import { uniqueName } from './helpers/uniqueName';
+import { unusedSingleCharName } from './helpers/unusedSingleCharName';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -288,7 +289,8 @@ test.describe('Edge cases', () => {
     trackProgram,
   }) => {
     const programs = new ProgramsPage(page);
-    const programName = String.fromCharCode(65 + (Date.now() % 26));
+    const programName = await unusedSingleCharName(programs);
+    expect(programName).toHaveLength(1);
 
     const createResponsePromise = programs.waitForProgramCreate();
     await openNewProgramModal(programs);

@@ -5,6 +5,7 @@ import { test, expect, extractProgramId } from '../fixtures/cleanup.fixture';
 import { LoginPage } from '../pages/LoginPage';
 import { ProgramsPage } from '../pages/ProgramsPage';
 import { uniqueName } from './helpers/uniqueName';
+import { unusedSingleCharName } from './helpers/unusedSingleCharName';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
@@ -313,7 +314,8 @@ test.describe('Edge cases', () => {
   test('TC-013: Program Name can be edited to a single non-whitespace character', async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Temporary Program');
-    const singleCharName = String.fromCharCode(65 + (Date.now() % 26));
+    const singleCharName = await unusedSingleCharName(programs);
+    expect(singleCharName).toHaveLength(1);
 
     trackProgram(await createProgram(programs, programName, 'Boundary test program'));
     await openEditModal(programs, programName);
