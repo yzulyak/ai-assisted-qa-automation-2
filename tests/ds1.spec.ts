@@ -376,9 +376,8 @@ test.describe('Edge cases', () => {
     trackProgram,
   }) => {
     const programs = new ProgramsPage(page);
-    const suffix = Date.now();
-    const originalName = `Web Development 2026-${suffix}`;
-    const duplicateAttempt = `web development 2026-${suffix}`;
+    const originalName = uniqueName('Web Development 2026');
+    const duplicateAttempt = originalName.toLowerCase();
 
     trackProgram(await createProgram(programs, originalName, 'Original program'), originalName);
     await expect(programs.programRowsWithName(originalName)).toHaveCount(1);

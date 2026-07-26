@@ -6,7 +6,7 @@ const API_BASE = (process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio').repl
 );
 
 /** Delay so late duplicate/double-click POSTs are captured before teardown deletes. */
-const CREATE_SETTLE_MS = 750;
+const CREATE_SETTLE_MS = 1500;
 const DELETE_ATTEMPTS = 3;
 
 export type TrackProgram = ((uuid: string, name?: string) => void) & {
@@ -286,11 +286,12 @@ export const test = base.extend<{ trackProgram: TrackProgram }>({
 
       await use(track);
 
-      page.off('response', onResponse);
+      // Keep the listener during settle so late duplicate/double-click POSTs
+      // are still captured before we tear down.
       await Promise.all(pendingCaptures);
-      // Late duplicate/double-click creates can land just after the last assertion.
       await new Promise((resolve) => setTimeout(resolve, CREATE_SETTLE_MS));
       await Promise.all(pendingCaptures);
+      page.off('response', onResponse);
       await deleteTrackedPrograms(request, trackedIds, trackedNames);
     },
     { auto: true },

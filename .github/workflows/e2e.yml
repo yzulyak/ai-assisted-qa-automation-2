@@ -33,6 +33,10 @@ jobs:
       - name: Run Playwright tests
         run: npx playwright test
 
+      - name: Sweep leftover test programs
+        if: ${{ !cancelled() }}
+        run: node scripts/sweep-run-programs.mjs
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
