@@ -125,7 +125,7 @@ test.describe('Positive flows', () => {
     ];
 
     for (const program of seedPrograms) {
-      trackProgram(await createProgram(programs, program.name, program.description));
+      trackProgram(await createProgram(programs, program.name, program.description), program.name);
     }
 
     await expect(programs.table).toBeVisible();
@@ -165,7 +165,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Cybersecurity Essentials');
     const description = 'Foundational cybersecurity training';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
 
     await expect(programs.table).toBeVisible();
     await expectProgramRowShowsNameAndDescription(programs, programName, description);
@@ -182,7 +182,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Mobile App Development');
 
     await goToPrograms(programs);
-    trackProgram(await createProgram(programs, programName, 'iOS and Android development'));
+    trackProgram(await createProgram(programs, programName, 'iOS and Android development'), programName);
 
     await login(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD);
     await programs.goto();
@@ -208,7 +208,7 @@ test.describe('Negative flows', () => {
     await goToPrograms(programs);
 
     const programName = uniqueName('Server Error Seed Program');
-    trackProgram(await createProgram(programs, programName, 'Program used to seed list before simulated API failure'));
+    trackProgram(await createProgram(programs, programName, 'Program used to seed list before simulated API failure'), programName);
 
     await page.route('**/*', async (route) => {
       const request = route.request();
@@ -237,7 +237,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Test Program');
     const description = 'Sample program for list display testing';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
 
     const row = programs.programRow(programName);
     await expect(programs.programTextInRow(programName, programName)).toBeVisible();
@@ -262,7 +262,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Informatique & IA - Niveau 2');
     const description = 'Parcours avancé — IA & data (2026)';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await expectProgramRowShowsNameAndDescription(programs, programName, description);
 
     const rowText = await programs.programRow(programName).innerText();
@@ -279,7 +279,7 @@ test.describe('Edge cases', () => {
 
     expect(programName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
 
     const row = programs.programRow(programName);
     await expect(row).toHaveCount(1);
@@ -304,7 +304,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Standalone Certificate');
 
-    trackProgram(await createProgram(programs, programName, ''));
+    trackProgram(await createProgram(programs, programName, ''), programName);
 
     const row = programs.programRow(programName);
     await expect(row).toHaveCount(1);
@@ -319,7 +319,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Technical Writing Workshop');
     expect(LONG_DESCRIPTION.length).toBeGreaterThanOrEqual(500);
 
-    trackProgram(await createProgram(programs, programName, LONG_DESCRIPTION));
+    trackProgram(await createProgram(programs, programName, LONG_DESCRIPTION), programName);
 
     await expect(programs.programTextInRow(programName, programName)).toBeVisible();
 
@@ -346,7 +346,7 @@ test.describe('Edge cases', () => {
     ];
 
     for (const program of seedPrograms) {
-      trackProgram(await createProgram(programs, program.name, program.description));
+      trackProgram(await createProgram(programs, program.name, program.description), program.name);
     }
 
     for (const program of seedPrograms) {
@@ -371,7 +371,7 @@ test.describe('Edge cases', () => {
     ];
 
     for (const program of seedPrograms) {
-      trackProgram(await createProgram(programs, program.name, program.description));
+      trackProgram(await createProgram(programs, program.name, program.description), program.name);
     }
 
     await programs.reload();
@@ -410,7 +410,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Action Buttons Program');
     const description = 'Verify row-level management actions are visible';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
 
     await expect(programs.editButton(programName)).toBeVisible();
     await expect(programs.deleteButton(programName)).toBeVisible();

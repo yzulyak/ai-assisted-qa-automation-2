@@ -103,7 +103,7 @@ test.describe('Positive flows', () => {
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
 
     await expect(programs.editProgramModal.programNameInput).toHaveValue(programName);
@@ -118,7 +118,7 @@ test.describe('Positive flows', () => {
     const updatedName = `${programName} - Updated`;
     const description = 'Full-stack web development program';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(updatedName);
     await programs.editProgramModal.save();
@@ -134,7 +134,7 @@ test.describe('Positive flows', () => {
     const originalDescription = 'Full-stack web development program';
     const updatedDescription = 'Updated full-stack curriculum for 2026';
 
-    trackProgram(await createProgram(programs, programName, originalDescription));
+    trackProgram(await createProgram(programs, programName, originalDescription), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(undefined, updatedDescription);
     await programs.editProgramModal.save();
@@ -152,7 +152,7 @@ test.describe('Positive flows', () => {
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'Intro to cloud platforms and services';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.save();
 
@@ -173,7 +173,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.clearProgramName();
 
@@ -194,7 +194,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Cybersecurity Basics');
     const description = 'Intro to security concepts';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill('Cybersecurity Advanced', 'Should not be saved');
     await closeEditModalWithoutSaving(programs);
@@ -247,8 +247,9 @@ test.describe('Negative flows', () => {
     const firstName = uniqueName('Web Development 2026');
     const secondName = uniqueName('Data Science Fundamentals');
 
-    trackProgram(await createProgram(programs, firstName, 'Full-stack web development program'));
-    trackProgram(await createProgram(programs, secondName, 'Foundations of data science'));
+    trackProgram(await createProgram(programs, firstName, 'Full-stack web development program'), firstName);
+    trackProgram(await createProgram(programs, secondName, 'Foundations of data science'), secondName);
+    trackProgram.trackName(secondName);
 
     await openEditModal(programs, firstName);
     await programs.editProgramModal.fill(secondName);
@@ -267,7 +268,7 @@ test.describe('Negative flows', () => {
 
     const programName = uniqueName('Mobile App Development');
 
-    trackProgram(await createProgram(programs, programName, 'iOS and Android development'));
+    trackProgram(await createProgram(programs, programName, 'iOS and Android development'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.clearProgramName();
 
@@ -289,7 +290,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill('   ');
 
@@ -302,7 +303,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Web Development 2026');
     const specialName = uniqueName('AI & ML (2026) — Cohort #1');
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(specialName);
     await programs.editProgramModal.save();
@@ -317,7 +318,7 @@ test.describe('Edge cases', () => {
     const singleCharName = await unusedSingleCharName(programs);
     expect(singleCharName).toHaveLength(1);
 
-    trackProgram(await createProgram(programs, programName, 'Boundary test program'));
+    trackProgram(await createProgram(programs, programName, 'Boundary test program'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(singleCharName);
     await programs.editProgramModal.save();
@@ -333,7 +334,7 @@ test.describe('Edge cases', () => {
     const maxName = `${'B'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
     expect(maxName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(maxName);
     await programs.editProgramModal.save();
@@ -349,7 +350,7 @@ test.describe('Edge cases', () => {
     const overMaxName = `${'B'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH + 1 - suffix.length))}${suffix}`;
     expect(overMaxName.length).toBe(PROGRAM_NAME_MAX_LENGTH + 1);
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(overMaxName);
 
@@ -387,7 +388,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'D'.repeat(DESCRIPTION_MAX_LENGTH);
 
-    trackProgram(await createProgram(programs, programName, 'Intro to cloud platforms'));
+    trackProgram(await createProgram(programs, programName, 'Intro to cloud platforms'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(undefined, description);
     await programs.editProgramModal.save();
@@ -403,8 +404,10 @@ test.describe('Edge cases', () => {
     const secondName = uniqueName('Data Science Fundamentals');
     const duplicateAttempt = secondName.toLowerCase();
 
-    trackProgram(await createProgram(programs, firstName, 'Full-stack web development program'));
-    trackProgram(await createProgram(programs, secondName, 'Foundations of data science'));
+    trackProgram(await createProgram(programs, firstName, 'Full-stack web development program'), firstName);
+    trackProgram(await createProgram(programs, secondName, 'Foundations of data science'), secondName);
+    trackProgram.trackName(duplicateAttempt);
+    trackProgram.trackName(secondName);
 
     await openEditModal(programs, firstName);
     await programs.editProgramModal.fill(duplicateAttempt);
@@ -420,7 +423,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
 
     await expect(programs.editProgramModal.saveButton).toBeEnabled();
@@ -440,7 +443,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Data Science Fundamentals');
     const description = 'Foundations of data science';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.clearDescription();
     await programs.editProgramModal.save();
@@ -457,7 +460,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
-    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'));
+    trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
     await openEditModal(programs, programName);
 
     await expect(programs.editProgramModal.programNameRequiredLabel).toBeVisible();
@@ -469,7 +472,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Cloud Computing 2026');
     const overMaxDescription = 'D'.repeat(DESCRIPTION_MAX_LENGTH + 1);
 
-    trackProgram(await createProgram(programs, programName, 'Intro to cloud platforms'));
+    trackProgram(await createProgram(programs, programName, 'Intro to cloud platforms'), programName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(undefined, overMaxDescription);
     await programs.editProgramModal.save();

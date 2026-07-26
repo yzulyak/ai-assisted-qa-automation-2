@@ -1,11 +1,18 @@
-import { test as base, expect, type APIRequestContext } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Request } from '@playwright/test';
 
 const API_BASE = (process.env.DIDAXIS_URL ?? 'https://test.didaxis.studio').replace(
   /\/$/,
   '',
 );
 
-type TrackProgram = (uuid: string) => void;
+/** Delay so late duplicate/double-click POSTs are captured before teardown deletes. */
+const CREATE_SETTLE_MS = 750;
+const DELETE_ATTEMPTS = 3;
+
+export type TrackProgram = ((uuid: string, name?: string) => void) & {
+  /** Register a name so teardown can sweep matching rows if a UUID was missed. */
+  trackName: (name: string) => void;
+};
 
 /** Extract program UUID from create/list API payloads. */
 export function extractProgramId(body: unknown): string {
@@ -24,6 +31,29 @@ export function extractProgramId(body: unknown): string {
   return id;
 }
 
+function extractProgramName(body: unknown): string | undefined {
+  const record = body as Record<string, unknown> | null;
+  if (!record) return undefined;
+  const data = record.data;
+  if (data && typeof data === 'object') {
+    const nested = data as Record<string, unknown>;
+    const nestedName = nested.name ?? nested.title;
+    if (typeof nestedName === 'string' && nestedName.trim()) return nestedName;
+  }
+  const name = record.name ?? record.title;
+  return typeof name === 'string' && name.trim() ? name : undefined;
+}
+
+function nameFromPostData(request: Request): string | undefined {
+  try {
+    const payload = request.postDataJSON() as Record<string, unknown> | null;
+    const name = payload?.name ?? payload?.title;
+    return typeof name === 'string' && name.trim() ? name : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function isProgramCreateResponse(url: string, method: string): boolean {
   if (method !== 'POST') return false;
   try {
@@ -32,6 +62,36 @@ function isProgramCreateResponse(url: string, method: string): boolean {
   } catch {
     return url.includes('/api/programs') && !url.includes('/api/programs/');
   }
+}
+
+function extractPrograms(body: unknown): Record<string, unknown>[] {
+  if (Array.isArray(body)) return body as Record<string, unknown>[];
+  const record = body as Record<string, unknown> | null;
+  if (!record) return [];
+  if (Array.isArray(record.data)) return record.data as Record<string, unknown>[];
+  const data = record.data as Record<string, unknown> | undefined;
+  if (data && Array.isArray(data.programs)) {
+    return data.programs as Record<string, unknown>[];
+  }
+  if (Array.isArray(record.programs)) return record.programs as Record<string, unknown>[];
+  return [];
+}
+
+function programIdFromListItem(program: Record<string, unknown>): string | undefined {
+  const id = program.id ?? program.uuid;
+  return typeof id === 'string' && id.trim() ? id : undefined;
+}
+
+function programNameFromListItem(program: Record<string, unknown>): string | undefined {
+  const name = program.name ?? program.title;
+  return typeof name === 'string' ? name : undefined;
+}
+
+function namesMatch(tracked: string, actual: string): boolean {
+  if (tracked === actual) return true;
+  if (tracked.trim() === actual.trim()) return true;
+  if (tracked.trim().toLowerCase() === actual.trim().toLowerCase()) return true;
+  return false;
 }
 
 async function loginForToken(request: APIRequestContext): Promise<string> {
@@ -79,24 +139,85 @@ async function resolveAuthToken(request: APIRequestContext): Promise<string> {
   return loginForToken(request);
 }
 
+async function deleteProgramWithRetry(
+  request: APIRequestContext,
+  token: string,
+  uuid: string,
+): Promise<string | null> {
+  let lastError: string | null = null;
+  for (let attempt = 1; attempt <= DELETE_ATTEMPTS; attempt++) {
+    const response = await request.delete(`${API_BASE}/api/programs/${uuid}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.ok() || response.status() === 404) {
+      return null;
+    }
+    lastError = `${uuid}: ${response.status()} ${await response.text()}`;
+    if (response.status() < 500 || attempt === DELETE_ATTEMPTS) {
+      break;
+    }
+  }
+  return lastError;
+}
+
+async function listPrograms(
+  request: APIRequestContext,
+  token: string,
+): Promise<Record<string, unknown>[]> {
+  const response = await request.get(`${API_BASE}/api/programs`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `Cleanup list failed: ${response.status()} ${await response.text()}`,
+    );
+  }
+  return extractPrograms(await response.json());
+}
+
+/**
+ * Delete tracked UUIDs, then sweep the programs list for any rows whose name
+ * was registered during the test (covers missed duplicate/double-click IDs).
+ */
 async function deleteTrackedPrograms(
   request: APIRequestContext,
-  tracked: string[],
+  trackedIds: string[],
+  trackedNames: string[],
 ): Promise<void> {
-  if (tracked.length === 0) {
+  if (trackedIds.length === 0 && trackedNames.length === 0) {
     return;
   }
 
   const token = await resolveAuthToken(request);
   const failures: string[] = [];
-  for (const uuid of tracked) {
-    const response = await request.delete(`${API_BASE}/api/programs/${uuid}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok() && response.status() !== 404) {
-      failures.push(`${uuid}: ${response.status()} ${await response.text()}`);
+  const deleted = new Set<string>();
+
+  for (const uuid of trackedIds) {
+    const error = await deleteProgramWithRetry(request, token, uuid);
+    if (error) {
+      failures.push(error);
+    } else {
+      deleted.add(uuid);
     }
   }
+
+  if (trackedNames.length > 0) {
+    const programs = await listPrograms(request, token);
+    for (const program of programs) {
+      const id = programIdFromListItem(program);
+      const name = programNameFromListItem(program);
+      if (!id || deleted.has(id) || !name) continue;
+      if (!trackedNames.some((tracked) => namesMatch(tracked, name))) continue;
+
+      const error = await deleteProgramWithRetry(request, token, id);
+      if (error) {
+        failures.push(error);
+      } else {
+        deleted.add(id);
+      }
+    }
+  }
+
   if (failures.length > 0) {
     throw new Error(`Program cleanup failed:\n${failures.join('\n')}`);
   }
@@ -106,22 +227,46 @@ export const test = base.extend<{ trackProgram: TrackProgram }>({
   // auto: true so cleanup runs even when the test does not destructure trackProgram
   trackProgram: [
     async ({ page, request }, use) => {
-      const tracked: string[] = [];
+      const trackedIds: string[] = [];
+      const trackedNames: string[] = [];
       const pendingCaptures: Promise<void>[] = [];
 
-      const track = (uuid: string) => {
+      const trackName = (name: string) => {
+        const value = name?.trim() ? name : '';
+        if (!value) return;
+        if (!trackedNames.includes(value)) {
+          trackedNames.push(value);
+        }
+        const trimmed = value.trim();
+        if (trimmed && !trackedNames.includes(trimmed)) {
+          trackedNames.push(trimmed);
+        }
+      };
+
+      const track = ((uuid: string, name?: string) => {
         if (!uuid) {
           throw new Error('trackProgram called with an empty program id');
         }
-        if (!tracked.includes(uuid)) {
-          tracked.push(uuid);
+        if (!trackedIds.includes(uuid)) {
+          trackedIds.push(uuid);
         }
-      };
+        if (name) {
+          trackName(name);
+        }
+      }) as TrackProgram;
+
+      track.trackName = trackName;
 
       const onResponse = (response: import('@playwright/test').Response) => {
         if (!isProgramCreateResponse(response.url(), response.request().method())) {
           return;
         }
+
+        const requestName = nameFromPostData(response.request());
+        if (requestName) {
+          trackName(requestName);
+        }
+
         if (!response.ok()) {
           return;
         }
@@ -129,7 +274,7 @@ export const test = base.extend<{ trackProgram: TrackProgram }>({
         const capture = (async () => {
           try {
             const body = await response.json();
-            track(extractProgramId(body));
+            track(extractProgramId(body), extractProgramName(body) ?? requestName);
           } catch {
             // Ignore unreadable/non-create payloads; explicit trackProgram still works.
           }
@@ -143,7 +288,10 @@ export const test = base.extend<{ trackProgram: TrackProgram }>({
 
       page.off('response', onResponse);
       await Promise.all(pendingCaptures);
-      await deleteTrackedPrograms(request, tracked);
+      // Late duplicate/double-click creates can land just after the last assertion.
+      await new Promise((resolve) => setTimeout(resolve, CREATE_SETTLE_MS));
+      await Promise.all(pendingCaptures);
+      await deleteTrackedPrograms(request, trackedIds, trackedNames);
     },
     { auto: true },
   ],

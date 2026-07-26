@@ -1,5 +1,5 @@
+import { test, expect } from '../fixtures/cleanup.fixture';
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect } from '@playwright/test';
 import { ProgramsPage } from '../pages/ProgramsPage';
 
 test.describe('Programs accessibility', () => {

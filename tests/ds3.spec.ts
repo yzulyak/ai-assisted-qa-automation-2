@@ -96,7 +96,7 @@ test.describe('Positive flows', () => {
     await programs.newProgramModal.fill(programName, description);
     await programs.newProgramModal.submit();
 
-    trackProgram(await programIdFromResponse(await createResponsePromise));
+    trackProgram(await programIdFromResponse(await createResponsePromise), programName);
 
     await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(programs.programInList(programName)).toBeVisible();
@@ -116,7 +116,8 @@ test.describe('Positive flows', () => {
     await programs.newProgramModal.fill(paddedName, description);
     await programs.newProgramModal.submit();
 
-    trackProgram(await programIdFromResponse(await createResponsePromise));
+    trackProgram(await programIdFromResponse(await createResponsePromise), trimmedName);
+    trackProgram.trackName(paddedName);
 
     await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(programs.programInList(trimmedName)).toBeVisible();
@@ -163,11 +164,12 @@ test.describe('Negative flows', () => {
 
     const programName = uniqueName('Web Development 2026');
 
-    trackProgram(await createProgram(programs, programName, 'Original program description'));
+    trackProgram(await createProgram(programs, programName, 'Original program description'), programName);
     await expect(programs.programRowsWithName(programName)).toHaveCount(1);
 
     await openNewProgramModal(programs);
     await programs.newProgramModal.fill(programName, 'Duplicate attempt description');
+    trackProgram.trackName(programName);
 
     const maybeCreate = programs.page.waitForResponse(
       (res) =>
@@ -184,7 +186,7 @@ test.describe('Negative flows', () => {
     } finally {
       const unexpected = await maybeCreate.catch(() => null);
       if (unexpected) {
-        trackProgram(await programIdFromResponse(unexpected));
+        trackProgram(await programIdFromResponse(unexpected), programName);
       }
     }
   });
@@ -197,7 +199,7 @@ test.describe('Negative flows', () => {
     const newProgramName = uniqueName('Mobile App Development 2026');
     const description = 'iOS and Android development track';
 
-    trackProgram(await createProgram(programs, existingName, 'Existing web development program'));
+    trackProgram(await createProgram(programs, existingName, 'Existing web development program'), existingName);
     await expect(programs.programInList(existingName)).toBeVisible();
 
     const createResponsePromise = programs.waitForProgramCreate();
@@ -205,7 +207,7 @@ test.describe('Negative flows', () => {
     await programs.newProgramModal.fill(newProgramName, description);
     await programs.newProgramModal.submit();
 
-    trackProgram(await programIdFromResponse(await createResponsePromise));
+    trackProgram(await programIdFromResponse(await createResponsePromise), newProgramName);
 
     await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(programs.newProgramModal.duplicateError).not.toBeVisible();
@@ -248,7 +250,7 @@ test.describe('Edge cases', () => {
     await programs.newProgramModal.fill(programName, 'Single character boundary test');
     await programs.newProgramModal.submit();
 
-    trackProgram(await programIdFromResponse(await createResponsePromise));
+    trackProgram(await programIdFromResponse(await createResponsePromise), programName);
 
     await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(programs.programInList(programName)).toBeVisible();
@@ -268,7 +270,7 @@ test.describe('Edge cases', () => {
     await programs.newProgramModal.fill(programName, 'Max length boundary test');
     await programs.newProgramModal.submit();
 
-    trackProgram(await programIdFromResponse(await createResponsePromise));
+    trackProgram(await programIdFromResponse(await createResponsePromise), programName);
 
     await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
     await expect(programs.programInList(programName)).toBeVisible();
@@ -293,6 +295,7 @@ test.describe('Edge cases', () => {
 
     await openNewProgramModal(programs);
     await programs.newProgramModal.fill(overMaxName, 'Over max length test');
+    trackProgram.trackName(overMaxName);
 
     const savedValue = await programs.newProgramModal.programNameInput.inputValue();
     const blockedBeforeSubmit =
@@ -325,7 +328,7 @@ test.describe('Edge cases', () => {
     } finally {
       await Promise.race([createWait, programs.page.waitForTimeout(2_000)]);
       if (unexpectedId) {
-        trackProgram(unexpectedId);
+        trackProgram(unexpectedId, overMaxName);
       }
     }
   });
@@ -335,11 +338,12 @@ test.describe('Edge cases', () => {
     const originalName = uniqueName('Web Development 2026');
     const duplicateAttempt = originalName.toLowerCase();
 
-    trackProgram(await createProgram(programs, originalName, 'Original program'));
+    trackProgram(await createProgram(programs, originalName, 'Original program'), originalName);
     await expect(programs.programInList(originalName)).toBeVisible();
 
     await openNewProgramModal(programs);
     await programs.newProgramModal.fill(duplicateAttempt, 'Case variation duplicate test');
+    trackProgram.trackName(duplicateAttempt);
 
     const maybeCreate = programs.page.waitForResponse(
       (res) =>
@@ -357,7 +361,7 @@ test.describe('Edge cases', () => {
     } finally {
       const unexpected = await maybeCreate.catch(() => null);
       if (unexpected) {
-        trackProgram(await programIdFromResponse(unexpected));
+        trackProgram(await programIdFromResponse(unexpected), duplicateAttempt);
       }
     }
   });
@@ -367,11 +371,12 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Web Development 2026');
     const paddedDuplicate = `  ${programName}  `;
 
-    trackProgram(await createProgram(programs, programName, 'Original program'));
+    trackProgram(await createProgram(programs, programName, 'Original program'), programName);
     await expect(programs.programRowsWithName(programName)).toHaveCount(1);
 
     await openNewProgramModal(programs);
     await programs.newProgramModal.fill(paddedDuplicate, 'Whitespace-padded duplicate test');
+    trackProgram.trackName(paddedDuplicate);
 
     const maybeCreate = programs.page.waitForResponse(
       (res) =>
@@ -388,7 +393,7 @@ test.describe('Edge cases', () => {
     } finally {
       const unexpected = await maybeCreate.catch(() => null);
       if (unexpected) {
-        trackProgram(await programIdFromResponse(unexpected));
+        trackProgram(await programIdFromResponse(unexpected), paddedDuplicate);
       }
     }
   });

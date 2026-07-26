@@ -99,7 +99,7 @@ test.describe('Positive flows', () => {
     const programName = uniqueName('Test Program');
     const description = 'Sample program for deletion testing';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await expect(programs.programInList(programName)).toBeVisible();
     await expect(programs.editButton(programName)).toBeVisible();
 
@@ -111,7 +111,7 @@ test.describe('Positive flows', () => {
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await cancelDeletion(programs, programName);
   });
 });
@@ -124,7 +124,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Data Science Fundamentals');
     const description = 'Introductory data science curriculum';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await expect(programs.programInList(programName)).toBeVisible();
 
     await handleDeleteConfirmation(programs, programName, 'dismiss');
@@ -142,7 +142,7 @@ test.describe('Negative flows', () => {
     const programName = uniqueName('Cloud Computing Basics');
 
     await goToPrograms(programs);
-    trackProgram(await createProgram(programs, programName, 'Intro to cloud computing'));
+    trackProgram(await createProgram(programs, programName, 'Intro to cloud computing'), programName);
 
     await login(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD);
     await programs.goto();
@@ -158,7 +158,7 @@ test.describe('Negative flows', () => {
 
     const programName = uniqueName('Mobile App Development');
 
-    trackProgram(await createProgram(programs, programName, 'iOS and Android development'));
+    trackProgram(await createProgram(programs, programName, 'iOS and Android development'), programName);
 
     await page.route('**/*', async (route) => {
       if (route.request().method() === 'DELETE') {
@@ -183,6 +183,9 @@ test.describe('Negative flows', () => {
     expect(deleteResponse.status()).toBeGreaterThanOrEqual(400);
     await expect(programs.programInList(programName)).toBeVisible({ timeout: 15_000 });
     await expect(programs.deleteError).toBeVisible({ timeout: 15_000 });
+
+    // Drop the page-level DELETE mock so it cannot interfere with later page traffic.
+    await page.unroute('**/*');
   });
 });
 
@@ -197,7 +200,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Informatique & IA - Niveau 2');
     const description = 'Advanced informatics and AI track';
 
-    trackProgram(await createProgram(programs, programName, description));
+    trackProgram(await createProgram(programs, programName, description), programName);
     await confirmDeletion(programs, programName);
   });
 
@@ -207,9 +210,9 @@ test.describe('Edge cases', () => {
     const advancedName = uniqueName('Test Program Advanced');
     const basicsName = uniqueName('Test Program Basics');
 
-    trackProgram(await createProgram(programs, targetName, 'Target for deletion'));
-    trackProgram(await createProgram(programs, advancedName, 'Advanced track'));
-    trackProgram(await createProgram(programs, basicsName, 'Basics track'));
+    trackProgram(await createProgram(programs, targetName, 'Target for deletion'), targetName);
+    trackProgram(await createProgram(programs, advancedName, 'Advanced track'), advancedName);
+    trackProgram(await createProgram(programs, basicsName, 'Basics track'), basicsName);
 
     await confirmDeletion(programs, targetName);
 
@@ -222,7 +225,7 @@ test.describe('Edge cases', () => {
     const programName = uniqueName('Standalone Program');
     const rowsBefore = await programs.programRowCount();
 
-    trackProgram(await createProgram(programs, programName, 'Only program for empty-state test'));
+    trackProgram(await createProgram(programs, programName, 'Only program for empty-state test'), programName);
 
     const rowsAfterCreate = await programs.programRowCount();
     const isOnlyProgram = rowsBefore === 0 && rowsAfterCreate === 1;
@@ -239,7 +242,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Cybersecurity Essentials');
 
-    trackProgram(await createProgram(programs, programName, 'Intro to cybersecurity'));
+    trackProgram(await createProgram(programs, programName, 'Intro to cybersecurity'), programName);
     await cancelDeletion(programs, programName);
     await cancelDeletion(programs, programName);
   });
@@ -250,7 +253,7 @@ test.describe('Edge cases', () => {
     const programName = `${'A'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
     expect(programName.length).toBe(PROGRAM_NAME_MAX_LENGTH);
 
-    trackProgram(await createProgram(programs, programName, 'Max length deletion test'));
+    trackProgram(await createProgram(programs, programName, 'Max length deletion test'), programName);
     await confirmDeletion(programs, programName);
   });
 
@@ -258,7 +261,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Confirm Message Check');
 
-    trackProgram(await createProgram(programs, programName, 'Verify native confirm message'));
+    trackProgram(await createProgram(programs, programName, 'Verify native confirm message'), programName);
 
     page.once('dialog', async (dialog) => {
       await expectConfirmDialogReferencesProgram(dialog, programName);
@@ -274,7 +277,7 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Double Delete Test');
 
-    trackProgram(await createProgram(programs, programName, 'Double-click delete guard'));
+    trackProgram(await createProgram(programs, programName, 'Double-click delete guard'), programName);
 
     let dialogCount = 0;
     const onDialog = async (dialog: Dialog) => {
