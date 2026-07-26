@@ -33,9 +33,11 @@ jobs:
       - name: Run Playwright tests
         run: npx playwright test
 
-      - name: Sweep leftover test programs
+      - name: Delete all Didaxis programs
         if: ${{ !cancelled() }}
-        run: node scripts/sweep-run-programs.mjs
+        # Shared test.didaxis.studio account: wipe everything after the suite so
+        # concurrent/external creators cannot leave orphans attributed to this CI run.
+        run: node scripts/delete-all-programs.mjs --confirm
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

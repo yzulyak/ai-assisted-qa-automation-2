@@ -1,12 +1,21 @@
-import { sweepRunPrograms } from './scripts/sweep-run-programs.mjs';
+import { spawnSync } from 'child_process';
+import path from 'path';
 
 /**
- * Safety net after the full suite: delete timestamped programs whose
- * embedded timestamp falls within this run window. Per-test fixture cleanup
- * is primary; this catches IDs that escaped tracking (retries, races).
+ * Safety net after the full suite. Spawn the Node ESM sweep script directly so
+ * Playwright's TS loader does not choke on `import.meta` / ESM interop.
  */
 async function globalTeardown(): Promise<void> {
-  await sweepRunPrograms();
+  const script = path.join(__dirname, 'scripts', 'sweep-run-programs.mjs');
+  const result = spawnSync(process.execPath, [script], {
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `global-teardown sweep failed with exit code ${result.status ?? 'null'}`,
+    );
+  }
 }
 
 export default globalTeardown;
