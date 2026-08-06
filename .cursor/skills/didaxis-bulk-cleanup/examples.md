@@ -1,28 +1,49 @@
-# Bulk vs per-test cleanup
+# Didaxis Bulk Cleanup Examples
 
-## Bulk cleanup (this skill)
+## Typical user request
 
-One-off reset of **all** programs in Didaxis Studio. Requires explicit user request and confirmation.
+> "Delete all programs from Didaxis test environment"
 
-```bash
-# Dry run — lists programs, deletes nothing
-node scripts/delete-all-programs.mjs
+**Agent steps:**
 
-# After user confirms — deletes every program
-node scripts/delete-all-programs.mjs --confirm
+1. Run dry run: `node scripts/delete-all-programs.mjs`
+2. Tell the user how many programs were found and show a sample of names/UUIDs
+3. Ask for confirmation
+4. On approval: `node scripts/delete-all-programs.mjs --confirm`
+
+## Example dry-run output
+
+```
+Target: https://test.didaxis.studio
+Programs found: 3
+- abc-123 | QA Program 1712345678
+- def-456 | Cleanup Diagnostic 1712345679
+- ghi-789 | Smoke Test Program
+
+Dry run only. Re-run with --confirm to delete all listed programs.
 ```
 
-## Per-test cleanup (Playwright)
+## Example confirmed run
 
-Tests that create programs must track and delete only what they created. Do not use the bulk script for teardown.
+```
+Target: https://test.didaxis.studio
+Programs found: 3
+...
+Deleted abc-123 (QA Program 1712345678)
+Deleted def-456 (Cleanup Diagnostic 1712345679)
+Deleted ghi-789 (Smoke Test Program)
 
-```typescript
-import { test, expect } from "../fixtures/cleanup.fixture";
-
-test("creates a program", async ({ page, trackProgram }) => {
-  // ... create program ...
-  trackProgram(uuid); // fixture deletes via DELETE /api/programs/<uuid>
-});
+Done. Deleted: 3, failed: 0
 ```
 
-See [playwright-test-cleanup](../playwright-test-cleanup/SKILL.md) for full patterns.
+## Wrong tool for the job
+
+**User:** "Add cleanup to this Playwright test that creates one program"
+
+Use `fixtures/cleanup.fixture.ts` and `trackProgram(uuid)` — not this bulk script.
+
+**User:** "Clean up leftover programs after tests failed"
+
+If they mean all programs in the environment → bulk script (with confirmation).
+
+If they mean only programs created by tests → fix the test to call `trackProgram(uuid)`.

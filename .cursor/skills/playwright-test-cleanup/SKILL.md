@@ -15,21 +15,26 @@ its UUID and delete it via the API afterwards.
 
 ## Steps
 
-1. Use the shared cleanup fixture in `fixtures/cleanup.fixture.ts`.
+1. Use unique program names (`uniqueName()` / `Date.now()`) so parallel runs
+   and retries cannot collide.
+
+2. Use the shared cleanup fixture in `fixtures/cleanup.fixture.ts`.
    Import `test` from there, not from `@playwright/test`.
 
-2. When a test creates a program, capture the program's UUID from the POST
+3. When a test creates a program, capture the program's UUID from the POST
    response (`response.data.id`) and call `trackProgram(uuid)` immediately.
 
-3. Do not write manual `afterAll` blocks for cleanup — the fixture
+4. Do not write manual `afterAll` blocks for cleanup — the fixture
    handles teardown for every test that uses it.
 
-4. Cleanup uses the DELETE API, not the UI:
+5. Cleanup uses the DELETE API, not the UI:
    `DELETE /api/programs/<uuid>` with a Bearer token. The fixture uses
    `DIDAXIS_API_TOKEN` when valid; otherwise it logs in via
    `POST /api/auth/login` using `DIDAXIS_EMAIL` / `DIDAXIS_PASSWORD`.
+   Prefer Playwright `request` for new API setup/contract checks in specs;
+   program teardown may stay on the cleanup fixture.
 
-5. Never hardcode the token. Never delete data the test did not create.
+6. Never hardcode the token. Never delete data the test did not create.
 
 ## Reference
 
@@ -55,6 +60,7 @@ Capture the UUID as soon as the program exists — do not defer tracking to the 
 
 When reviewing or editing any test that creates persistent Didaxis data, verify:
 
+- [ ] Uses unique names (`uniqueName` / `Date.now()`)
 - [ ] Imports `test` from `fixtures/cleanup.fixture.ts` (not `@playwright/test`)
 - [ ] Every created program UUID is passed to `trackProgram(uuid)`
 - [ ] No manual `afterAll` / `afterEach` cleanup blocks

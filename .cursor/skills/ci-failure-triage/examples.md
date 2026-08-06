@@ -1,96 +1,63 @@
-# Example: Red E2E check → triage PR comment → (optional) Jira
+# CI Failure Triage — Example
 
-## Scenario
+## Input
 
-PR `#42` on branch `feat/ds1-create-program` — **E2E Tests** is red.
-
-## Step 1 — Resolve and download evidence
+PR #42, branch `feat/ds1-tc011`, E2E check failed.
 
 ```bash
-gh run list --workflow e2e.yml --branch feat/ds1-create-program --limit 5
-# → run-id 18234567890, conclusion failure
+gh run list --workflow e2e.yml --branch feat/ds1-tc011 --limit 1
+# 123456789  E2E Tests  feat/ds1-tc011  failure
 
-gh run view 18234567890 --json conclusion,url,headSha,displayTitle
-gh run view 18234567890 --log-failed
-
-mkdir -p /tmp/ci-triage/18234567890
-gh run download 18234567890 -n playwright-report -D /tmp/ci-triage/18234567890/
+gh run view 123456789 --log-failed
+gh run download 123456789 -n playwright-report -D /tmp/ci-triage/123456789/
 ```
 
-From the report / failed log:
+Log excerpt:
 
 ```
-Error: expect(locator).toBeVisible() failed
-Locator: getByText('Web Development 2026')
+tests/ds1-create-program.spec.ts:142:5 › DS-1: Create new academic program › TC-002 › expect(locator).toBeVisible()
 Expected: visible
-Timeout: 5000ms
-
-  at tests/ds1.spec.ts:178:48
+Received: hidden
+Locator: getByText('Computer Science BSc')
 ```
 
-## Step 2 — Cross-reference
+## Cross-reference
 
-| Layer | Finding |
-|-------|---------|
-| Spec `tests/ds1.spec.ts` | Asserts created program name appears in list after Create |
-| POM `pages/programs.page.ts` | Locator uses `getByText(name)` on programs table |
-| Feature `features/DS-1.feature` | AC: newly created program is visible in the Programs list |
-| Parent story | **DS-1** |
+- Spec: `tests/ds1-create-program.spec.ts` — creates program, asserts name in list
+- POM: `pages/ProgramsPage.ts` — `programRow(name)` uses `getByText`
+- AC: `features/DS-1.feature` — created program appears in list immediately
 
-No locator typo; assertion matches AC. Failure looks like product behavior, not a wrong expectation.
+Trace shows list refreshed but row text is truncated; AC expects full name visible.
 
-## Step 3 — Classify
+## Classification
+
+**App bug** — UI truncates name; test and AC align.
+
+## PR comment (posted)
+
+```markdown
+## CI failure triage
+
+**Run:** [123456789](https://github.com/org/repo/actions/runs/123456789) · commit `abc1234` · workflow `E2E Tests`
+
+**Failing test:** `tests/ds1-create-program.spec.ts` — "TC-002"
 
 **Classification:** App bug (pending human confirm)
 
-Ask the user to confirm before filing Jira. Do not auto-merge any fix.
-
-## Step 4 — PR comment
-
-```bash
-gh pr comment 42 --body "$(cat <<'EOF'
-## CI failure triage
-
-**Run:** [18234567890](https://github.com/org/repo/actions/runs/18234567890) · commit `abc1234` · workflow `E2E Tests`
-
-**Failing test:** `tests/ds1.spec.ts` — "Valid program is created and appears in the list"
-
-**Classification:** App bug (needs human confirm)
-
-**Root cause:** Programs list after Create — modal closes but the new program name never appears in the list (AC in `features/DS-1.feature` requires it). Spec/POM assertion aligns with AC; not a locator mismatch.
+**Root cause:** Programs list renders truncated program title — full name from create flow never appears in row text node the list exposes.
 
 | | |
 |---|---|
-| **Expected** | "Web Development 2026" visible in Programs list after Create |
-| **Actual** | Element not found within 5s; list unchanged |
+| **Expected** | "Computer Science BSc" visible in program list (`features/DS-1.feature`) |
+| **Actual** | Locator `getByText('Computer Science BSc')` hidden; trace shows abbreviated label |
 
-**Suggested fix:** Product fix on Didaxis create → list refresh/persist path. No test patch proposed until human confirms.
+**Suggested fix:** App: show full program name in list row. Test change not recommended.
 
-**Evidence:** Playwright timeout on `getByText('Web Development 2026')` at `tests/ds1.spec.ts:178`; artifact `playwright-report` under run `18234567890`
+**Evidence:** `playwright-report` artifact → TC-002 failure screenshot; log line above
 
-**Jira:** not filed yet · **Human confirm:** required before filing app bug
-EOF
-)"
+**Jira:** pending confirmation
 ```
 
-## Step 5 — After human confirms app bug
+## Human confirms → Jira
 
-Follow [jira-bug-reporter](../jira-bug-reporter/SKILL.md): reproduce, duplicate-check, create DS-1 sub-task, attach screenshots, then update the PR comment with the Jira key.
-
----
-
-# Example: Red check that is a test issue
-
-## Failure
-
-```
-TimeoutError: locator.click: Timeout 30000ms exceeded.
-Call log:
-  - waiting for getByRole('button', { name: 'Creat' })
-```
-
-Cross-ref: UI button label is **Create**; POM has typo `Creat`. Feature AC does not say "Creat".
-
-**Classification:** Test issue
-
-**Suggested fix:** Correct locator in `pages/programs.page.ts` (propose patch; do not push/merge without approval). Do not file Jira.
+Follow [jira-bug-reporter](../jira-bug-reporter/SKILL.md), parent `DS-1`, then update PR comment with `DS-173` link.

@@ -2,7 +2,7 @@
 name: bug-reporter
 description: Files a structured Jira bug for a confirmed defect and links
   it to the story. Use once triage confirms a real app bug.
-model: inherit
+model: composer-2.5[]
 readonly: true
 ---
 
@@ -20,7 +20,7 @@ You file Jira bugs from a confirmed diagnosis.
 
 ## When invoked
 
-1. **Apply the `jira-bug-reporter` skill** (`.cursor/skills/jira-bug-reporter/SKILL.md`)
+1. **Apply the `jira-bug-reporter` skill** (`.claude/skills/jira-bug-reporter/SKILL.md`)
    - Format the ticket using the bug report template
    - Resolve the parent story key from the diagnosis (describe title, feature file, or explicit key)
    - Search Jira for duplicate sub-tasks before creating

@@ -31,10 +31,10 @@ You are the bug analysis and reporting specialist for the Didaxis Studio demo pr
 Prefix every Jira summary with the agent name:
 
 ```
-[Composer-Y] <clear, specific defect description>
+[Composer] <clear, specific defect description>
 ```
 
-Example: `[Composer-Y] Program list shows stale data after editing program name`
+Example: `[Composer] Program list shows stale data after editing program name`
 
 ## Bug Report Template
 

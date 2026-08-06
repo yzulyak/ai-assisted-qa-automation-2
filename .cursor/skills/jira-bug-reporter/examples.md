@@ -1,87 +1,63 @@
-# Example: Failed DS-1 test → Jira sub-task
+# Jira Bug Reporter — Example
 
-## Failure input
+## Input
 
-Playwright run of `tests/ds1.spec.ts` fails with:
+Playwright failure from `tests/ds1-create-program.spec.ts`:
 
 ```
 Error: expect(locator).toBeVisible() failed
-
-Locator: getByText('Web Development 2026')
+Locator: getByText('Computer Science BSc')
 Expected: visible
-Timeout: 5000ms
-Error: element(s) not found
-
-  at tests/ds1.spec.ts:178:48
+Received: hidden
 ```
 
-Screenshot path from the run:
+Parent story: `DS-1` (from `test.describe("DS-1: Create new academic program")`)
 
-```
-test-results/ds1-Positive-flows-Valid-program-is-created-and-appears-in-the-list-chromium/test-failed-1.png
-```
-
-## Step 1 — Resolve parent story
-
-- Spec file: `tests/ds1.spec.ts`
-- Feature file: `features/DS-1.feature`
-- Parent: **DS-1**
-
-## Step 2 — Reproduce
+## Re-run test and collect screenshots
 
 ```bash
-npx playwright test tests/ds1.spec.ts -g "Valid program is created and appears in the list" --workers=1
-npx playwright test tests/ds1.spec.ts -g "Valid program is created and appears in the list" --workers=1 --repeat-each=2
+npx playwright test tests/ds1-create-program.spec.ts -g "TC-002" --workers=1
 node scripts/collect-failure-screenshots.mjs --latest
 ```
 
-Confirm the failure reproduces twice and PNGs are listed.
+Example output:
 
-## Step 3 — Duplicate check
+```
+/Users/.../test-results/ds1-create-program-...-chromium/test-failed-1.png
+```
+
+## Duplicate search
 
 ```jql
-parent = DS-1 AND issuetype = Sub-task AND text ~ "program list" AND text ~ "created"
+parent = DS-1 AND issuetype = Sub-task AND text ~ "Computer Science BSc"
 ```
 
-No matching open sub-task → create new issue.
+## Draft report
 
-## Step 4 — Create sub-task via MCP
+**Summary:** `[Composer] Created program name not visible in program list`
 
-`createJiraIssue` fields:
-
-| Field | Value |
-|---|---|
-| `projectKey` | `DS` |
-| `issueTypeName` | `Sub-task` |
-| `parent` | `DS-1` |
-| `summary` | `[Composer] Newly created program does not appear in the Programs list` |
-| `additional_fields` | `{"priority": {"name": "High"}}` |
-
-Description body:
+**Description:**
 
 ```
-**Title:** Newly created program does not appear in the Programs list
-
 **Severity:** High
+**Priority:** High
+
+**Playwright Error:**
+Error: expect(locator).toBeVisible() failed
+Locator: getByText('Computer Science BSc')
+Expected: visible
+Received: hidden
 
 **Steps to Reproduce:**
 1. Log in as admin at https://test.didaxis.studio/login
 2. Navigate to Programs page
 3. Click "+ New Program"
-4. Fill in Program Name with "Web Development 2026"
-5. Fill in Description with "Full-stack web development program"
-6. Click "Create"
+4. Enter program name "Computer Science BSc" and submit
+5. Observe the program list
 
-**Expected Result:** Modal closes and the Programs list displays "Web Development 2026"
+**Expected Result:** The new program appears in the list immediately after creation.
 
-**Actual Result:** Modal closes but "Web Development 2026" is not visible in the list.
-Playwright error:
-expect(locator).toBeVisible() failed
-Locator: getByText('Web Development 2026')
-Expected: visible
-Timeout: 5000ms
-Error: element(s) not found
-at tests/ds1.spec.ts:178:48
+**Actual Result:** The program name is not visible in the list after creation.
 
 **Environment:**
 - URL: https://test.didaxis.studio
@@ -89,39 +65,46 @@ at tests/ds1.spec.ts:178:48
 - Account: admin@didaxis.studio
 
 **Evidence:**
-- Screenshot: attached (local: test-results/.../test-failed-1.png)
-- Trace: (none — failure on first run without retry)
+- Screenshot attached to ticket (see attachments)
+- Local: test-results/.../test-failed-1.png
 
 **Linked Story:** DS-1
 ```
 
-## Step 5 — Attach screenshots (required)
+## MCP create call
 
-Assume the new issue key is `DS-173`:
+```json
+{
+  "cloudId": "legionqaschool.atlassian.net",
+  "projectKey": "DS",
+  "issueTypeName": "Sub-task",
+  "parent": "DS-1",
+  "summary": "[Composer] Created program name not visible in program list",
+  "description": "<full markdown from above>",
+  "additional_fields": {
+    "priority": { "name": "High" }
+  }
+}
+```
+
+## Attach screenshots (required)
 
 ```bash
-node scripts/jira-attach-screenshots.mjs DS-173 $(node scripts/collect-failure-screenshots.mjs --latest)
+node scripts/jira-attach-screenshots.mjs DS-42 $(node scripts/collect-failure-screenshots.mjs --latest)
 ```
 
-Exit code must be `0` before reporting completion.
-
-## Step 6 — Return to user
-
-```
-Created DS-173: [Composer] Newly created program does not appear in the Programs list
-https://legionqaschool.atlassian.net/browse/DS-173
-Parent: DS-1
-Screenshots attached: test-failed-1.png
-```
-
-## Duplicate path (existing open sub-task)
-
-If JQL finds an open match (e.g. `DS-150`):
-
-1. Do **not** create a new issue
-2. Comment with the new Playwright error and re-run details
-3. Attach fresh screenshots:
+One-shot for an existing ticket:
 
 ```bash
-node scripts/jira-attach-screenshots.mjs DS-150 $(node scripts/collect-failure-screenshots.mjs --latest)
+node scripts/report-bug-with-screenshots.mjs DS-42 DS-1 "TC-002"
 ```
+
+Optional archive:
+
+```bash
+node scripts/archive-failure-evidence.mjs DS-1 --latest
+```
+
+## Output to user
+
+Return the new issue key (e.g. `DS-42`), Jira URL, list of attached screenshot filenames, and confirm upload script exited 0.

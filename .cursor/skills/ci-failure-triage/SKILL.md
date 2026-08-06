@@ -1,6 +1,10 @@
 ---
 name: ci-failure-triage
-description: When a CI run is red, pull the run's logs and the playwright-report artifact via gh cli, read the Playwright error and trace, cross-reference the spec, POM, and app source in the repo, classify real app bug vs test issue, and post a structured diagnosis to the PR. Use whenever a build fails — even if triage isn't asked for.
+description: When a CI run is red, pull the run's logs and the
+  playwright-report artifact via gh cli, read the Playwright error
+  and trace, cross-reference the spec, POM, and app source in the repo,
+  classify real app bug vs test issue, and post a structured diagnosis
+  to the PR. Use whenever a build fails — even if triage isn't asked for.
 ---
 
 # CI Failure Triage
