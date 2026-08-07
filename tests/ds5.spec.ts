@@ -189,11 +189,8 @@ test.describe('Negative flows', () => {
 
     await expect(programs.newProgramButton).not.toBeVisible();
 
-    const programVisible = await programs
-      .programInList(programName)
-      .isVisible()
-      .catch(() => false);
-    const accessDenied = await programs.unauthorizedMessage.isVisible().catch(() => false);
+    const programVisible = (await programs.programInList(programName).count()) > 0;
+    const accessDenied = (await programs.unauthorizedMessage.count()) > 0;
 
     if (programVisible && !accessDenied) {
       await expect(programs.anyEditButton).not.toBeVisible();
@@ -323,17 +320,15 @@ test.describe('Edge cases', () => {
 
     await expect(programs.programTextInRow(programName, programName)).toBeVisible();
 
-    const descriptionVisible =
-      (await programs
-        .programTextInRow(programName, LONG_DESCRIPTION)
-        .isVisible()
-        .catch(() => false)) ||
-      (await programs
-        .programTextInRow(programName, LONG_DESCRIPTION.slice(0, 40), false)
-        .isVisible()
-        .catch(() => false));
-
-    expect(descriptionVisible).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const fullVisible = (await programs.programTextInRow(programName, LONG_DESCRIPTION).count()) > 0;
+        const truncatedVisible =
+          (await programs.programTextInRow(programName, LONG_DESCRIPTION.slice(0, 40), false).count()) >
+          0;
+        return fullVisible || truncatedVisible;
+      })
+      .toBeTruthy();
     await expectNoHorizontalLayoutBreak(page);
   });
 
@@ -393,8 +388,10 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     await expect(programs.heading).toBeVisible();
     await expect(programs.subtitle).toBeVisible();
+    await expect(programs.table.or(programs.emptyStateMessage)).toBeVisible();
 
-    if (await programs.emptyStateMessage.isVisible()) {
+    const emptyStateCount = await programs.emptyStateMessage.count();
+    if (emptyStateCount > 0) {
       await expect(programs.emptyStateMessage).toBeVisible();
       await expect(programs.newProgramButton).toBeVisible();
       return;

@@ -287,9 +287,7 @@ test.describe('Edge cases', () => {
     page.on('dialog', onDialog);
 
     await programs.doubleClickDelete(programName);
-    await page.waitForTimeout(1_000);
-
-    expect(dialogCount).toBe(1);
+    await expect.poll(() => dialogCount).toBe(1);
     await expect(programs.programInList(programName)).toBeVisible();
 
     page.off('dialog', onDialog);

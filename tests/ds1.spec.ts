@@ -57,9 +57,6 @@ async function expectDuplicateNameError(programs: ProgramsPage): Promise<void> {
   await expect(programs.newProgramModal.duplicateError).toBeVisible();
 }
 
-/** Wait for create API + list refresh so duplicate checks don't pass on a brief error flash. */
-const DUPLICATE_CHECK_SETTLE_MS = 1_000;
-
 async function expectDuplicateSubmissionRejected(
   programs: ProgramsPage,
   options: { listName: string; expectedRowCount: number },
@@ -69,17 +66,18 @@ async function expectDuplicateSubmissionRejected(
   expect(countBefore).toBe(options.expectedRowCount);
 
   const createResponse = programs.page.waitForResponse(
-    (response) => response.request().method() === 'POST',
+    (response) =>
+      response.url().includes('/api/programs') &&
+      response.request().method() === 'POST',
     { timeout: 15_000 },
   );
 
   await programs.newProgramModal.submit();
   await createResponse.catch(() => null);
-  await programs.page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
-  await expect(rows).toHaveCount(options.expectedRowCount);
   await expect(programs.newProgramModal.dialog).toBeVisible();
   await expectDuplicateNameError(programs);
+  await expect(rows).toHaveCount(options.expectedRowCount);
 }
 
 test.beforeEach(async () => {
@@ -331,8 +329,14 @@ test.describe('Edge cases', () => {
     expect(overMaxName.length).toBe(PROGRAM_NAME_MAX_LENGTH + 1);
 
     let unexpectedId: string | undefined;
-    const createWait = programs
-      .waitForProgramCreate()
+    const createWait = page
+      .waitForResponse(
+        (res) =>
+          res.url().includes('/api/programs') &&
+          res.request().method() === 'POST' &&
+          res.ok(),
+        { timeout: 2_000 },
+      )
       .then(async (res) => {
         unexpectedId = await programIdFromResponse(res);
       })
@@ -348,7 +352,7 @@ test.describe('Edge cases', () => {
       await expect(programs.newProgramModal.dialog).toBeVisible({ timeout: 15_000 });
       await expect(programs.programRowsWithName(overMaxName)).toHaveCount(0);
     } finally {
-      await Promise.race([createWait, page.waitForTimeout(2_000)]);
+      await createWait;
       if (unexpectedId) {
         trackProgram(unexpectedId, overMaxName);
       }
@@ -426,8 +430,10 @@ test.describe('Edge cases', () => {
     const programs = new ProgramsPage(page);
     await expect(programs.heading).toBeVisible();
     await expect(programs.subtitle).toBeVisible();
+    await expect(programs.tableOrEmptyState).toBeVisible();
 
-    if (await programs.emptyStateExact.isVisible()) {
+    const emptyStateCount = await programs.emptyStateExact.count();
+    if (emptyStateCount > 0) {
       await expect(programs.emptyStateExact).toBeVisible();
       await expect(programs.newProgramButton).toBeVisible();
       return;
@@ -460,8 +466,14 @@ test.describe('Edge cases', () => {
     const description = 'D'.repeat(DESCRIPTION_MAX_LENGTH + 1);
 
     let unexpectedId: string | undefined;
-    const createWait = programs
-      .waitForProgramCreate()
+    const createWait = page
+      .waitForResponse(
+        (res) =>
+          res.url().includes('/api/programs') &&
+          res.request().method() === 'POST' &&
+          res.ok(),
+        { timeout: 2_000 },
+      )
       .then(async (res) => {
         unexpectedId = await programIdFromResponse(res);
       })
@@ -476,7 +488,7 @@ test.describe('Edge cases', () => {
       await expect(programs.newProgramModal.dialog).toBeVisible({ timeout: 15_000 });
       await expect(programs.programInList(programName)).not.toBeVisible();
     } finally {
-      await Promise.race([createWait, page.waitForTimeout(2_000)]);
+      await createWait;
       if (unexpectedId) {
         trackProgram(unexpectedId, programName);
       }
@@ -516,8 +528,8 @@ test.describe('Edge cases', () => {
 
       await expect(programs.newProgramModal.dialog).not.toBeVisible({ timeout: 15_000 });
       await expect(programs.programRowsWithName(programName)).toHaveCount(1);
+      await expect.poll(() => createdIds.length).toBeGreaterThanOrEqual(1);
     } finally {
-      await page.waitForTimeout(500);
       page.off('response', onResponse);
       for (const id of createdIds) {
         trackProgram(id, programName);

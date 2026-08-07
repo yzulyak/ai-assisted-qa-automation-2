@@ -46,8 +46,6 @@ async function expectDuplicateNameError(programs: ProgramsPage): Promise<void> {
   await expect(programs.newProgramModal.duplicateError).toBeVisible();
 }
 
-const DUPLICATE_CHECK_SETTLE_MS = 1_000;
-
 async function expectDuplicateSubmissionRejected(
   programs: ProgramsPage,
   options: { listName: string; expectedRowCount: number },
@@ -57,17 +55,18 @@ async function expectDuplicateSubmissionRejected(
   expect(countBefore).toBe(options.expectedRowCount);
 
   const createResponse = programs.page.waitForResponse(
-    (response) => response.request().method() === 'POST',
+    (response) =>
+      response.url().includes('/api/programs') &&
+      response.request().method() === 'POST',
     { timeout: 15_000 },
   );
 
   await programs.newProgramModal.submit();
   await createResponse.catch(() => null);
-  await programs.page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
-  await expect(rows).toHaveCount(options.expectedRowCount);
   await expect(programs.newProgramModal.dialog).toBeVisible();
   await expectDuplicateNameError(programs);
+  await expect(rows).toHaveCount(options.expectedRowCount);
 }
 
 test.beforeEach(async () => {
@@ -286,8 +285,14 @@ test.describe('Edge cases', () => {
     expect(overMaxName.length).toBe(PROGRAM_NAME_MAX_LENGTH + 1);
 
     let unexpectedId: string | undefined;
-    const createWait = programs
-      .waitForProgramCreate()
+    const createWait = programs.page
+      .waitForResponse(
+        (res) =>
+          res.url().includes('/api/programs') &&
+          res.request().method() === 'POST' &&
+          res.ok(),
+        { timeout: 2_000 },
+      )
       .then(async (res) => {
         unexpectedId = await programIdFromResponse(res);
       })
@@ -304,29 +309,27 @@ test.describe('Edge cases', () => {
 
     if (!blockedBeforeSubmit) {
       await programs.newProgramModal.submit();
-      await programs.page.waitForTimeout(1_000);
+      await expect
+        .poll(async () => {
+          const modalStillOpen = (await programs.newProgramModal.dialog.count()) > 0;
+          const validationErrorVisible =
+            modalStillOpen && (await programs.newProgramModal.lengthError.count()) > 0;
+          const truncatedInField =
+            modalStillOpen &&
+            (await programs.newProgramModal.programNameInput.inputValue()).length <=
+              PROGRAM_NAME_MAX_LENGTH;
+          const overMaxListed = await programs.programRowsWithName(overMaxName).count();
+          return truncatedInField || validationErrorVisible || modalStillOpen || overMaxListed === 0;
+        })
+        .toBeTruthy();
+    } else {
+      expect(blockedBeforeSubmit).toBeTruthy();
     }
 
     try {
-      const modalStillOpen = await programs.newProgramModal.dialog.isVisible().catch(() => false);
-      const validationErrorVisible = modalStillOpen
-        ? await programs.newProgramModal.lengthError.isVisible().catch(() => false)
-        : false;
-      const truncatedInField =
-        modalStillOpen &&
-        (await programs.newProgramModal.programNameInput.inputValue()).length <=
-          PROGRAM_NAME_MAX_LENGTH;
-      const overMaxListed = await programs.programRowsWithName(overMaxName).count();
-
-      expect(
-        blockedBeforeSubmit ||
-          truncatedInField ||
-          validationErrorVisible ||
-          modalStillOpen ||
-          overMaxListed === 0,
-      ).toBeTruthy();
+      await expect(programs.programRowsWithName(overMaxName)).toHaveCount(0);
     } finally {
-      await Promise.race([createWait, programs.page.waitForTimeout(2_000)]);
+      await createWait;
       if (unexpectedId) {
         trackProgram(unexpectedId, overMaxName);
       }

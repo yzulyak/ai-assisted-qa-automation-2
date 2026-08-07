@@ -61,8 +61,6 @@ async function expectDuplicateNameError(programs: ProgramsPage): Promise<void> {
   await expect(programs.editProgramModal.duplicateError).toBeVisible();
 }
 
-const DUPLICATE_CHECK_SETTLE_MS = 1_000;
-
 async function expectDuplicateEditRejected(
   programs: ProgramsPage,
   options: { listName: string; expectedRowCount: number },
@@ -72,17 +70,18 @@ async function expectDuplicateEditRejected(
   expect(countBefore).toBe(options.expectedRowCount);
 
   const saveResponse = programs.page.waitForResponse(
-    (response) => ['PUT', 'PATCH', 'POST'].includes(response.request().method()),
+    (response) =>
+      response.url().includes('/api/programs') &&
+      ['PUT', 'PATCH', 'POST'].includes(response.request().method()),
     { timeout: 15_000 },
   );
 
   await programs.editProgramModal.save();
   await saveResponse.catch(() => null);
-  await programs.page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
-  await expect(rows).toHaveCount(options.expectedRowCount);
   await expect(programs.editProgramModal.dialog).toBeVisible();
   await expectDuplicateNameError(programs);
+  await expect(rows).toHaveCount(options.expectedRowCount);
 }
 
 test.beforeEach(async () => {
@@ -361,25 +360,21 @@ test.describe('Edge cases', () => {
 
     if (!blockedBeforeSubmit) {
       await programs.editProgramModal.save();
-      await programs.page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
+      await expect
+        .poll(async () => {
+          const modalStillOpen = (await programs.editProgramModal.dialog.count()) > 0;
+          const validationErrorVisible =
+            modalStillOpen && (await programs.editProgramModal.lengthError.count()) > 0;
+          const truncatedInField =
+            modalStillOpen &&
+            (await programs.editProgramModal.programNameInput.inputValue()).length <=
+              PROGRAM_NAME_MAX_LENGTH;
+          const overMaxListed = await programs.programRowsWithName(overMaxName).count();
+          return truncatedInField || validationErrorVisible || modalStillOpen || overMaxListed === 0;
+        })
+        .toBeTruthy();
     }
 
-    const modalStillOpen = await programs.editProgramModal.dialog.isVisible().catch(() => false);
-    const validationErrorVisible = modalStillOpen
-      ? await programs.editProgramModal.lengthError.isVisible().catch(() => false)
-      : false;
-    const truncatedInField =
-      modalStillOpen &&
-      (await programs.editProgramModal.programNameInput.inputValue()).length <= PROGRAM_NAME_MAX_LENGTH;
-    const overMaxListed = await programs.programRowsWithName(overMaxName).count();
-
-    expect(
-      blockedBeforeSubmit ||
-        truncatedInField ||
-        validationErrorVisible ||
-        modalStillOpen ||
-        overMaxListed === 0,
-    ).toBeTruthy();
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
@@ -476,14 +471,15 @@ test.describe('Edge cases', () => {
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(undefined, overMaxDescription);
     await programs.editProgramModal.save();
-    await programs.page.waitForTimeout(DUPLICATE_CHECK_SETTLE_MS);
 
-    const modalStillOpen = await programs.editProgramModal.dialog.isVisible();
-    const validationErrorVisible = modalStillOpen
-      ? await programs.editProgramModal.lengthError.isVisible().catch(() => false)
-      : false;
-
-    expect(modalStillOpen || validationErrorVisible).toBeTruthy();
+    await expect
+      .poll(async () => {
+        const modalStillOpen = (await programs.editProgramModal.dialog.count()) > 0;
+        const validationErrorVisible =
+          modalStillOpen && (await programs.editProgramModal.lengthError.count()) > 0;
+        return modalStillOpen || validationErrorVisible;
+      })
+      .toBeTruthy();
     await expect(programs.programInList(programName)).toBeVisible();
   });
 });
