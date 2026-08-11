@@ -2,6 +2,7 @@ import type { Locator, Page, Response } from '@playwright/test';
 import { BASE_URL } from './baseUrl';
 import { EditProgramModal } from './EditProgramModal';
 import { NewProgramModal } from './NewProgramModal';
+import { NewSemesterModal } from './NewSemesterModal';
 
 export class ProgramsPage {
   readonly page: Page;
@@ -18,12 +19,18 @@ export class ProgramsPage {
   readonly table: Locator;
   readonly programColumnHeader: Locator;
   readonly semesterPanelPlaceholder: Locator;
+  readonly semesterPanelTitle: Locator;
+  readonly noSemestersYet: Locator;
+  readonly addSemesterButton: Locator;
+  readonly manageCoursesButton: Locator;
+  readonly generateCurriculumButton: Locator;
   readonly anyDeleteButton: Locator;
   readonly anyEditButton: Locator;
   readonly programRows: Locator;
   readonly tableOrEmptyState: Locator;
   readonly newProgramModal: NewProgramModal;
   readonly editProgramModal: EditProgramModal;
+  readonly newSemesterModal: NewSemesterModal;
 
   constructor(page: Page) {
     this.page = page;
@@ -60,6 +67,13 @@ export class ProgramsPage {
     this.table = page.getByRole('table');
     this.programColumnHeader = page.getByRole('columnheader', { name: 'Program' });
     this.semesterPanelPlaceholder = page.getByText('Select a program to manage semesters');
+    this.semesterPanelTitle = page.getByText('Semesters & scheduling config');
+    this.noSemestersYet = page.getByText('No semesters yet');
+    this.addSemesterButton = page.getByRole('button', { name: '+ Semester' });
+    this.manageCoursesButton = page.getByRole('button', { name: 'Manage Courses' });
+    this.generateCurriculumButton = page.getByRole('button', {
+      name: /Generate Curriculum/i,
+    });
     this.anyDeleteButton = page.getByRole('button', { name: /^Delete / });
     this.anyEditButton = page.getByRole('button', { name: /^Edit / });
     this.programRows = this.table.getByRole('row').filter({
@@ -68,6 +82,7 @@ export class ProgramsPage {
     this.tableOrEmptyState = this.table.or(this.emptyStateExact);
     this.newProgramModal = new NewProgramModal(page);
     this.editProgramModal = new EditProgramModal(page);
+    this.newSemesterModal = new NewSemesterModal(page);
   }
 
   async goto(): Promise<void> {
@@ -131,10 +146,42 @@ export class ProgramsPage {
     await this.editButton(programName).click();
   }
 
+  /** Select a program row to open the semester management panel. */
+  async selectProgram(programName: string): Promise<void> {
+    await this.firstCellInRow(programName).click();
+  }
+
+  async openNewSemesterForm(): Promise<void> {
+    await this.addSemesterButton.click();
+  }
+
+  async createSemester(
+    name: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    await this.openNewSemesterForm();
+    await this.newSemesterModal.fill(name, startDate, endDate);
+    await this.newSemesterModal.submit();
+  }
+
+  semesterInPanel(name: string): Locator {
+    return this.page.getByText(name, { exact: true });
+  }
+
   waitForProgramCreate(): Promise<Response> {
     return this.page.waitForResponse(
       (res) =>
         res.url().includes('/api/programs') &&
+        res.request().method() === 'POST' &&
+        res.ok(),
+    );
+  }
+
+  waitForSemesterCreate(): Promise<Response> {
+    return this.page.waitForResponse(
+      (res) =>
+        /\/api\/programs\/[^/]+\/semesters/.test(res.url()) &&
         res.request().method() === 'POST' &&
         res.ok(),
     );

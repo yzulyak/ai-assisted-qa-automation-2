@@ -1,26 +1,50 @@
 ---
-description: How to drive a QA ticket or a red build to done by delegating to the test-writer, triage, and bug-reporter subagents.
+description: How to drive a QA ticket, coverage gap, or backlog queue to done by coordinating analysis and subagents.
 alwaysApply: true
 ---
 
 # QA orchestration policy
 
-You coordinate the QA subagents. Do the analysis yourself (apply the
-`jira-ticket-to-gherkin` skill to turn a ticket into a plan); delegate the rest.
+You coordinate the QA subagents. Do the analysis yourself; delegate the rest.
+
+## Skills
+
+- **jira-ticket-to-gherkin** — ticket given → Gherkin test plan
+- **explore-and-generate** — no ticket; discover an untested UI flow → Gherkin plan
 
 ## Routing
 
-- ticket given → analyze → produce a test plan
+- ticket given → analyze (`jira-ticket-to-gherkin`) → produce a test plan
+- no ticket / "explore coverage" → analyze (`explore-and-generate`) → produce a test plan
 - plan ready → delegate to **test-writer**
 - spec returned → run: `npx playwright test`
 - run is red → delegate to **triage**
 - real app bug → delegate to **bug-reporter**
 - test issue → delegate to **test-writer** (propose a fix; human OKs)
 
+## Backlog mode
+
+Work a queue of tickets instead of one. The agent never decides when to start —
+an outer wire (Cursor Automation, headless `agent -p` run, or local batch)
+triggers the run.
+
+**Queue** — All DS tickets in status `In Progress` that do **not** have the
+`tests-generated` label. Cap: at most **5 tickets per run**.
+
+**Per ticket** — analyze → **test-writer** → `npx playwright test` → **triage**
+on red. Open **one PR per ticket**, link the ticket, then add the
+`tests-generated` label so the next run skips it.
+
+**Failure** — On a repeated identical failure, stop that ticket and move on to
+the next. Do not burn the whole run on one flake.
+
+**Never** merge or close a ticket without a human.
+
 ## Loop guard
 
 - At most 3 delegations per task
 - Never re-run an identical failing spec more than twice — then stop and ask
+  (in backlog mode: stop that ticket and continue the queue)
 
 ## Approval
 
@@ -28,4 +52,6 @@ A human approves any merge and any filed bug.
 
 ## Done
 
-The suite is green for the ticket, or a bug is filed and linked.
+The suite is green for the ticket (or each ticket in the backlog batch), or a
+bug is filed and linked. In backlog mode, every processed ticket has a PR and
+the `tests-generated` label.
