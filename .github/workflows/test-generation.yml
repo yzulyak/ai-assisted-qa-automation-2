@@ -42,11 +42,22 @@ jobs:
       - name: Generate tests from In Progress backlog
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          # Jira Cloud Basic auth = email + API token (MCP OAuth is unavailable in Actions)
+          ATLASSIAN_EMAIL: ${{ secrets.ATLASSIAN_EMAIL }}
           ATLASSIAN_API_TOKEN: ${{ secrets.ATLASSIAN_API_TOKEN }}
+          ATLASSIAN_BASE_URL: ${{ secrets.ATLASSIAN_BASE_URL }}
+          JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [ -z "$ATLASSIAN_EMAIL" ] || [ -z "$ATLASSIAN_API_TOKEN" ]; then
+            echo "::error::Missing ATLASSIAN_EMAIL and/or ATLASSIAN_API_TOKEN in the 'dev1' environment secrets."
+            echo "Jira REST Basic auth requires both. Create an API token at https://id.atlassian.com/manage-profile/security/api-tokens"
+            exit 1
+          fi
           agent -p --force --trust --output-format text "$(cat <<'EOF'
           Work the In Progress backlog per .cursor/rules/qa-orchestration.mdc Backlog mode.
+
+          Auth: use Jira REST with Basic auth (ATLASSIAN_EMAIL + ATLASSIAN_API_TOKEN). Do not use Atlassian MCP — OAuth is unavailable in GitHub Actions. Base URL is ATLASSIAN_BASE_URL (default https://legionqaschool.atlassian.net).
 
           Queue: all DS tickets in status "In Progress" that do not have the tests-generated label.
           Cap: at most 5 tickets this run.
