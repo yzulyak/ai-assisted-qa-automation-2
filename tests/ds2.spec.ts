@@ -350,31 +350,23 @@ test.describe('Edge cases', () => {
     expect(overMaxName.length).toBe(PROGRAM_NAME_MAX_LENGTH + 1);
 
     trackProgram(await createProgram(programs, programName, 'Full-stack web development program'), programName);
+    trackProgram.trackName(overMaxName);
     await openEditModal(programs, programName);
     await programs.editProgramModal.fill(overMaxName);
 
-    const savedValue = await programs.editProgramModal.programNameInput.inputValue();
-    const blockedBeforeSubmit =
-      savedValue.length <= PROGRAM_NAME_MAX_LENGTH ||
-      (await programs.editProgramModal.saveButton.isDisabled());
+    const fieldValue = await programs.editProgramModal.programNameInput.inputValue();
 
-    if (!blockedBeforeSubmit) {
+    if (fieldValue.length <= PROGRAM_NAME_MAX_LENGTH) {
+      // Client truncated — over-max string never entered; leave original unchanged.
+      expect(fieldValue.length).toBeLessThanOrEqual(PROGRAM_NAME_MAX_LENGTH);
+      await closeEditModalWithoutSaving(programs);
+    } else {
+      // Over-max accepted in the field — Save must not persist that name.
       await programs.editProgramModal.save();
-      await expect
-        .poll(async () => {
-          const modalStillOpen = (await programs.editProgramModal.dialog.count()) > 0;
-          const validationErrorVisible =
-            modalStillOpen && (await programs.editProgramModal.lengthError.count()) > 0;
-          const truncatedInField =
-            modalStillOpen &&
-            (await programs.editProgramModal.programNameInput.inputValue()).length <=
-              PROGRAM_NAME_MAX_LENGTH;
-          const overMaxListed = await programs.programRowsWithName(overMaxName).count();
-          return truncatedInField || validationErrorVisible || modalStillOpen || overMaxListed === 0;
-        })
-        .toBeTruthy();
+      await expect(programs.editProgramModal.dialog).toBeVisible({ timeout: 15_000 });
     }
 
+    await expect(programs.programRowsWithName(overMaxName)).toHaveCount(0);
     await expect(programs.programInList(programName)).toBeVisible();
   });
 

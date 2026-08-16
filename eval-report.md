@@ -1,12 +1,12 @@
 # Suite reliability eval report
 
-Generated: **2026-08-16T20:59:11.324Z** · Repo: **yzulyak/ai-assisted-qa-automation-2** · Window: last **9** parsed E2E runs (requested 10)
+Generated: **2026-08-16T21:36:43.103Z** · Repo: **yzulyak/ai-assisted-qa-automation-2** · Window: last **9** parsed E2E runs (requested 10)
 
 > Cursor has **no built-in telemetry** for flake / heal / generation-gate / ask-vs-guess. Numbers below were measured from GitHub Actions logs, PR history, and (when present) local agent transcripts via `scripts/generate-eval-report.mjs`.
 
 ## Flake rate
 
-**Number:** **1** tests passed only on retry (Playwright `flaky`) / **1006** completed tests = **0.10%**
+**Number:** **1** tests passed only on retry (Playwright `flaky`) / **1010** completed tests = **0.10%**
 
 **How measured:** `gh run list --workflow=e2e.yml` for the last 10 runs; downloaded each job log; parsed Playwright summary lines (`N flaky` / `N failed` / `N passed`). Flaky = failed initially, passed on retry (`retries: 2` on CI).
 
