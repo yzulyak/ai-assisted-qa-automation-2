@@ -49,7 +49,7 @@ Add further statuses the plan calls for the same way — observe first, then ass
 
 - Drive every click/fill/nav through existing POMs (`ProgramsPage`,
   `NewProgramModal`). No inline locators in the spec.
-- **One tag per test** (e.g. `{ tag: "@network" }`) — never multiple tags.
+- **One tag per test** from `@smoke` · `@sanity` · `@regression` · `@api` · `@e2e` · `@destructive` (e.g. `{ tag: "@regression" }`) — never multiple tags.
 - Scope the route narrowly (programs API only); `route.continue()` everything else.
 - Unroute or let the test end cleanly; do not leave broad `**/*` aborts unless
   the scenario requires it (prefer status/`fulfill` over `abort`).
@@ -60,7 +60,7 @@ Add further statuses the plan calls for the same way — observe first, then ass
 ```typescript
 test(
   "TC-NNN — Programs empty state when API returns no programs",
-  { tag: "@network" },
+  { tag: "@regression" },
   async ({ page }) => {
     await page.route("**/api/programs**", async (route) => {
       if (route.request().method() === "GET") {

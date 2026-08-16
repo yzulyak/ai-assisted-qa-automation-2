@@ -97,7 +97,7 @@ test.describe('Positive flows', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-001: Edit form displays current program data on open', async ({ page, trackProgram }) => {
+  test('TC-001: Edit form displays current program data on open', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const description = 'Full-stack web development program';
@@ -111,7 +111,7 @@ test.describe('Positive flows', () => {
     await expect(programs.editProgramModal.cancelButton).toBeVisible();
   });
 
-  test('TC-002: Program name update is saved and reflected in the list', async ({ page, trackProgram }) => {
+  test('TC-002: Program name update is saved and reflected in the list', { tag: '@smoke' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const updatedName = `${programName} - Updated`;
@@ -127,7 +127,7 @@ test.describe('Positive flows', () => {
     await expect(programs.programInList(programName)).not.toBeVisible();
   });
 
-  test('TC-003: Unchanged fields are preserved when only Description is edited', async ({ page, trackProgram }) => {
+  test('TC-003: Unchanged fields are preserved when only Description is edited', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const originalDescription = 'Full-stack web development program';
@@ -146,7 +146,7 @@ test.describe('Positive flows', () => {
     await expect(programs.editProgramModal.descriptionInput).toHaveValue(updatedDescription);
   });
 
-  test('TC-004: Save succeeds when no field values are changed', async ({ page, trackProgram }) => {
+  test('TC-004: Save succeeds when no field values are changed', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'Intro to cloud platforms and services';
@@ -165,7 +165,7 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-005: Program is not updated when Program Name is cleared', async ({ page, trackProgram }) => {
+  test('TC-005: Program is not updated when Program Name is cleared', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -186,7 +186,7 @@ test.describe('Negative flows', () => {
     await expect(programs.editProgramModal.descriptionInput).toHaveValue(description);
   });
 
-  test('TC-006: Dismissing the edit modal does not persist changes', async ({ page, trackProgram }) => {
+  test('TC-006: Dismissing the edit modal does not persist changes', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -209,7 +209,7 @@ test.describe('Negative flows', () => {
   test.describe('without admin session', () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test('TC-007: Non-admin user cannot edit a program', async ({ page }) => {
+    test('TC-007: Non-admin user cannot edit a program', { tag: '@e2e' }, async ({ page }) => {
       test.skip(
         !NON_ADMIN_EMAIL || !NON_ADMIN_PASSWORD,
         'Set DIDAXIS_NON_ADMIN_EMAIL and DIDAXIS_NON_ADMIN_PASSWORD in .env',
@@ -226,7 +226,7 @@ test.describe('Negative flows', () => {
       await expect(programs.editProgramModal.dialog).not.toBeVisible();
     });
 
-    test('TC-008: Unauthenticated user cannot edit a program', async ({ page }) => {
+    test('TC-008: Unauthenticated user cannot edit a program', { tag: '@e2e' }, async ({ page }) => {
       const loginPage = new LoginPage(page);
       const programs = new ProgramsPage(page);
 
@@ -239,7 +239,7 @@ test.describe('Negative flows', () => {
     });
   });
 
-  test('TC-009: Renaming a program to an existing name is rejected', async ({ page, trackProgram }) => {
+  test('TC-009: Renaming a program to an existing name is rejected', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -261,7 +261,7 @@ test.describe('Negative flows', () => {
     await expect(programs.programInList(secondName)).toBeVisible();
   });
 
-  test('TC-010: Failed edit attempt does not create a duplicate program entry', async ({ page, trackProgram }) => {
+  test('TC-010: Failed edit attempt does not create a duplicate program entry', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -285,7 +285,7 @@ test.describe('Edge cases', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-011: Whitespace-only Program Name is treated as invalid on edit', async ({ page, trackProgram }) => {
+  test('TC-011: Whitespace-only Program Name is treated as invalid on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
@@ -297,7 +297,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-012: Edited Program Name with special characters is saved and displayed correctly', async ({ page, trackProgram }) => {
+  test('TC-012: Edited Program Name with special characters is saved and displayed correctly', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const specialName = uniqueName('AI & ML (2026) — Cohort #1');
@@ -311,7 +311,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(specialName)).toBeVisible();
   });
 
-  test('TC-013: Program Name can be edited to a single non-whitespace character', async ({ page, trackProgram }) => {
+  test('TC-013: Program Name can be edited to a single non-whitespace character', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Temporary Program');
     const singleCharName = await unusedSingleCharName(programs);
@@ -326,7 +326,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(singleCharName)).toBeVisible();
   });
 
-  test('TC-014: Program Name at maximum allowed length is accepted on edit', async ({ page, trackProgram }) => {
+  test('TC-014: Program Name at maximum allowed length is accepted on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const suffix = Date.now().toString();
@@ -342,7 +342,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(maxName)).toBeVisible();
   });
 
-  test('TC-015: Program Name exceeding maximum length is rejected or blocked on edit', async ({ page, trackProgram }) => {
+  test('TC-015: Program Name exceeding maximum length is rejected or blocked on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const suffix = Date.now().toString();
@@ -378,7 +378,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-016: Description at maximum allowed length is saved on edit', async ({ page, trackProgram }) => {
+  test('TC-016: Description at maximum allowed length is saved on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'D'.repeat(DESCRIPTION_MAX_LENGTH);
@@ -393,7 +393,7 @@ test.describe('Edge cases', () => {
     await expect(programs.editProgramModal.descriptionInput).toHaveValue(description);
   });
 
-  test('TC-017: Duplicate Program Name check is case-insensitive on edit (if applicable)', async ({ page, trackProgram }) => {
+  test('TC-017: Duplicate Program Name check is case-insensitive on edit (if applicable)', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const firstName = uniqueName('Web Development 2026');
     const secondName = uniqueName('Data Science Fundamentals');
@@ -414,7 +414,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programRowsWithName(secondName)).toHaveCount(1);
   });
 
-  test('TC-018: Save button state updates dynamically when Program Name is edited', async ({ page, trackProgram }) => {
+  test('TC-018: Save button state updates dynamically when Program Name is edited', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
@@ -433,7 +433,7 @@ test.describe('Edge cases', () => {
     await expect(programs.editProgramModal.saveButton).toBeDisabled();
   });
 
-  test('TC-019: Description can be cleared to empty on edit', async ({ page, trackProgram }) => {
+  test('TC-019: Description can be cleared to empty on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Data Science Fundamentals');
     const description = 'Foundations of data science';
@@ -451,7 +451,7 @@ test.describe('Edge cases', () => {
     await expect(programs.editProgramModal.descriptionInput).toHaveValue('');
   });
 
-  test('TC-020: Edit modal exposes AI Generation Config section', async ({ page, trackProgram }) => {
+  test('TC-020: Edit modal exposes AI Generation Config section', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
 
@@ -462,7 +462,7 @@ test.describe('Edge cases', () => {
     await expect(programs.editProgramModal.showAiConfigButton).toBeVisible();
   });
 
-  test('TC-021: Description exceeding maximum length is rejected on edit', async ({ page, trackProgram }) => {
+  test('TC-021: Description exceeding maximum length is rejected on edit', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Cloud Computing 2026');
     const overMaxDescription = 'D'.repeat(DESCRIPTION_MAX_LENGTH + 1);

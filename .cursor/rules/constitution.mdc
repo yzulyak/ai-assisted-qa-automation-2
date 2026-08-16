@@ -1,0 +1,75 @@
+---
+description: Always-on Playwright constitution — agent governance, MUST / SHOULD / WON'T, skill & agent index
+alwaysApply: true
+---
+
+# Playwright constitution
+
+Hard constraints for every task. Details live in `playwright-conventions.mdc` and skills.
+
+## Agent governance
+
+Behavioral contract (not hook-enforced). Audit first; edit second.
+
+### Audit-then-edit
+
+Before any non-trivial edit: explore the relevant files, conventions, and skills. Do not invent a path, enum, env var, credential, or user-facing message — ask or explore until verified.
+
+### Proposal (before editing)
+
+Every non-trivial task emits a **Proposal** block first:
+
+| Field | Content |
+|---|---|
+| Scope | What will change (files / behavior) |
+| Confidence | Integer 1–10 |
+| Rationale | Why this approach |
+| Unknowns | Gaps, assumptions, missing inputs |
+
+### Confidence gate
+
+| Score | Action |
+|---|---|
+| **< 5** | Do not proceed — ask for the missing input |
+| **5–7** | Proceed only with unknowns listed and human approval |
+| **≥ 8** | Proceed |
+
+## MUST
+
+| Rule | Meaning |
+|---|---|
+| Role-based locators | `getByRole` / label first; `getByTestId` only with a why-comment; never CSS/XPath |
+| Web-first assertions | `expect(locator)…` only; no `waitForTimeout`, no `isVisible()` snapshots |
+| `storageState` auth | Feature tests use setup project auth; UI login only for login-page tests |
+| Unique self-cleaning data | Faker/unique names; every create cleans up in `finally` / fixture |
+| One tag per test | Exactly one of `@smoke` · `@sanity` · `@regression` · `@api` · `@e2e` · `@destructive` on each `test(…)` — never on `describe` |
+| State revert hooks | Any test that mutates shared/global state MUST revert in `afterEach` / `afterAll` |
+
+## SHOULD
+
+| Rule | Meaning |
+|---|---|
+| Faker factories | Build test data via factories, not ad-hoc inline strings |
+| Enums for repeated strings | Shared labels, statuses, routes → typed constants/enums |
+| JSDoc on action methods | Document POM actions (params, side effects, return) |
+
+## WON'T
+
+| Rule | Meaning |
+|---|---|
+| XPath | Never |
+| `waitForTimeout` | Never — use web-first waits |
+| Hardcoded secrets | Env / `storageState` only |
+| `any` | Never in specs, POMs, or helpers |
+| Weakened assertions | Never heal by loosening expected behavior |
+| Healing a real bug | Heal locator drift only; file bugs for app defects |
+| Tags on `describe` | Tags belong on individual tests only |
+| Ad-hoc / multiple tags | Only the six allowed tags; exactly one per test |
+
+## Index
+
+**Skills** — `jira-ticket-to-gherkin` · `explore-and-generate` · `pom-conventions` · `playwright-test-cleanup` · `a11y-checks` · `network-mocked-edge-cases` · `ci-failure-triage` · `self-heal` · `jira-bug-reporter` · `didaxis-bulk-cleanup` · `eval-report` · `exploratory-charter`
+
+**Agents** — `test-writer` (plan → spec) · `triage` (red run → bug vs drift) · `bug-reporter` (confirmed defect → Jira)
+
+**Rules** — `qa-orchestration.mdc` (routing) · `playwright-conventions.mdc` (full standard)

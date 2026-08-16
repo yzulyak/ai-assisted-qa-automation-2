@@ -93,7 +93,7 @@ test.describe('Positive flows', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-001: Program creation form displays required fields', async ({ page }) => {
+  test('TC-001: Program creation form displays required fields', { tag: '@sanity' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await openNewProgramModal(programs);
 
@@ -105,7 +105,7 @@ test.describe('Positive flows', () => {
     await expect(programs.newProgramModal.programNameRequiredLabel).toBeVisible();
   });
 
-  test('TC-002: Valid program is created and appears in the list', async ({
+  test('TC-002: Valid program is created and appears in the list', { tag: '@smoke' }, async ({
     page,
     trackProgram,
   }) => {
@@ -125,7 +125,7 @@ test.describe('Positive flows', () => {
     await expect(programs.programRow(programName)).toContainText(description);
   });
 
-  test('TC-003: Create button is disabled when Program Name is empty', async ({ page }) => {
+  test('TC-003: Create button is disabled when Program Name is empty', { tag: '@sanity' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await openNewProgramModal(programs);
     await programs.newProgramModal.fill(undefined, 'Optional description text');
@@ -135,7 +135,7 @@ test.describe('Positive flows', () => {
     await expect(programs.newProgramModal.dialog).toBeVisible();
   });
 
-  test('TC-004: Program can be created with Description empty', async ({
+  test('TC-004: Program can be created with Description empty', { tag: '@sanity' }, async ({
     page,
     trackProgram,
   }) => {
@@ -157,7 +157,7 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-005: Program is not created when submission is attempted with empty Program Name', async ({
+  test('TC-005: Program is not created when submission is attempted with empty Program Name', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -178,7 +178,7 @@ test.describe('Negative flows', () => {
   test.describe('without admin session', () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    test('TC-006: Non-admin user cannot access program creation', async ({ page }) => {
+    test('TC-006: Non-admin user cannot access program creation', { tag: '@e2e' }, async ({ page }) => {
       test.skip(
         !NON_ADMIN_EMAIL || !NON_ADMIN_PASSWORD,
         'Set DIDAXIS_NON_ADMIN_EMAIL and DIDAXIS_NON_ADMIN_PASSWORD in .env',
@@ -192,7 +192,7 @@ test.describe('Negative flows', () => {
       await expect(programs.newProgramModal.dialog).not.toBeVisible();
     });
 
-    test('TC-007: Unauthenticated user cannot create a program', async ({ page }) => {
+    test('TC-007: Unauthenticated user cannot create a program', { tag: '@e2e' }, async ({ page }) => {
       const programs = new ProgramsPage(page);
       const loginPage = new LoginPage(page);
       await programs.goto();
@@ -204,7 +204,7 @@ test.describe('Negative flows', () => {
     });
   });
 
-  test('TC-008: Canceling or closing the modal does not create a program', async ({ page }) => {
+  test('TC-008: Canceling or closing the modal does not create a program', { tag: '@sanity' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -218,7 +218,7 @@ test.describe('Negative flows', () => {
     await expect(programs.programInList(programName)).not.toBeVisible();
   });
 
-  test('TC-009: Duplicate program name is rejected', async ({ page, trackProgram }) => {
+  test('TC-009: Duplicate program name is rejected', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -258,7 +258,7 @@ test.describe('Edge cases', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-010: Program Name with leading and trailing whitespace is handled consistently', async ({
+  test('TC-010: Program Name with leading and trailing whitespace is handled consistently', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -268,7 +268,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.createButton).toBeDisabled();
   });
 
-  test('TC-011: Program Name accepts special characters', async ({ page, trackProgram }) => {
+  test('TC-011: Program Name accepts special characters', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('AI & ML (2026) — Cohort #1');
 
@@ -283,7 +283,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-012: Program Name at minimum valid length (single character)', async ({
+  test('TC-012: Program Name at minimum valid length (single character)', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -302,7 +302,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-013: Program Name at maximum allowed length', async ({ page, trackProgram }) => {
+  test('TC-013: Program Name at maximum allowed length', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const suffix = Date.now().toString();
     const programName = `${'A'.repeat(Math.max(0, PROGRAM_NAME_MAX_LENGTH - suffix.length))}${suffix}`;
@@ -319,7 +319,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-014: Program Name exceeding maximum length is rejected or truncated', async ({
+  test('TC-014: Program Name exceeding maximum length is rejected or truncated', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -359,7 +359,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-015: Description at maximum allowed length', async ({ page, trackProgram }) => {
+  test('TC-015: Description at maximum allowed length', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Cloud Computing 2026');
     const description = 'D'.repeat(DESCRIPTION_MAX_LENGTH);
@@ -375,7 +375,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-016: Duplicate program name is case-insensitive (if applicable)', async ({
+  test('TC-016: Duplicate program name is case-insensitive (if applicable)', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -411,7 +411,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-017: Create button enables when Program Name becomes non-empty', async ({ page }) => {
+  test('TC-017: Create button enables when Program Name becomes non-empty', { tag: '@regression' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Mobile App Development');
 
@@ -426,7 +426,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.createButton).toBeDisabled();
   });
 
-  test('TC-018: Programs page displays heading, subtitle, and program table', async ({ page }) => {
+  test('TC-018: Programs page displays heading, subtitle, and program table', { tag: '@sanity' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await expect(programs.heading).toBeVisible();
     await expect(programs.subtitle).toBeVisible();
@@ -444,7 +444,7 @@ test.describe('Edge cases', () => {
     await expect(programs.semesterPanelPlaceholder).toBeVisible();
   });
 
-  test('TC-019: New Program modal exposes AI generation defaults', async ({ page }) => {
+  test('TC-019: New Program modal exposes AI generation defaults', { tag: '@regression' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await openNewProgramModal(programs);
 
@@ -457,7 +457,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.defaultExamHoursInput).toHaveValue('3');
   });
 
-  test('TC-020: Description exceeding maximum length is rejected', async ({
+  test('TC-020: Description exceeding maximum length is rejected', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -495,7 +495,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-021: Double-clicking Create creates exactly one program', async ({
+  test('TC-021: Double-clicking Create creates exactly one program', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -537,7 +537,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-022: AI Generation Config section collapses and expands', async ({ page }) => {
+  test('TC-022: AI Generation Config section collapses and expands', { tag: '@regression' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await openNewProgramModal(programs);
 

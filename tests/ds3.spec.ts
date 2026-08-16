@@ -82,7 +82,7 @@ test.describe('Positive flows', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-001: Program name containing ampersands, hyphens, and accented characters is accepted and persisted', async ({
+  test('TC-001: Program name containing ampersands, hyphens, and accented characters is accepted and persisted', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -101,7 +101,7 @@ test.describe('Positive flows', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-002: Non-empty name surrounded by whitespace is accepted and stored without outer whitespace', async ({
+  test('TC-002: Non-empty name surrounded by whitespace is accepted and stored without outer whitespace', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -126,7 +126,7 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-003: Program Name containing only spaces is trimmed, treated as empty, and blocks submission', async ({
+  test('TC-003: Program Name containing only spaces is trimmed, treated as empty, and blocks submission', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -142,7 +142,7 @@ test.describe('Negative flows', () => {
     await expect(programs.programRows).toHaveCount(rowsBefore);
   });
 
-  test('TC-004: Create action is blocked when Program Name field is left empty', async ({ page }) => {
+  test('TC-004: Create action is blocked when Program Name field is left empty', { tag: '@regression' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -157,7 +157,7 @@ test.describe('Negative flows', () => {
     await expect(programs.programRows).toHaveCount(rowsBefore);
   });
 
-  test('TC-005: System prevents creating a program whose name already exists', async ({ page, trackProgram }) => {
+  test('TC-005: System prevents creating a program whose name already exists', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -190,7 +190,7 @@ test.describe('Negative flows', () => {
     }
   });
 
-  test('TC-006: New program with a unique name is not falsely rejected as a duplicate', async ({ page, trackProgram }) => {
+  test('TC-006: New program with a unique name is not falsely rejected as a duplicate', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -220,7 +220,7 @@ test.describe('Edge cases', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-007: Program Name with only tab or newline characters is rejected like space-only input', async ({
+  test('TC-007: Program Name with only tab or newline characters is rejected like space-only input', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -237,7 +237,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programRows).toHaveCount(rowsBefore);
   });
 
-  test('TC-008: Minimum valid non-whitespace Program Name (one character) is allowed', async ({
+  test('TC-008: Minimum valid non-whitespace Program Name (one character) is allowed', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -255,7 +255,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-009: Program Name at the documented maximum length (100 characters) is saved and displayed in full', async ({
+  test('TC-009: Program Name at the documented maximum length (100 characters) is saved and displayed in full', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -275,7 +275,7 @@ test.describe('Edge cases', () => {
     await expect(programs.programInList(programName)).toBeVisible();
   });
 
-  test('TC-010: Program Name longer than the allowed limit cannot be saved', async ({
+  test('TC-010: Program Name longer than the allowed limit cannot be saved', { tag: '@regression' }, async ({
     page,
     trackProgram,
   }) => {
@@ -336,7 +336,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-011: Program names that match an existing name ignoring case are treated as duplicates', async ({ page, trackProgram }) => {
+  test('TC-011: Program names that match an existing name ignoring case are treated as duplicates', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const originalName = uniqueName('Web Development 2026');
     const duplicateAttempt = originalName.toLowerCase();
@@ -369,7 +369,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-012: Surrounding whitespace on a duplicate name does not bypass uniqueness validation', async ({ page, trackProgram }) => {
+  test('TC-012: Surrounding whitespace on a duplicate name does not bypass uniqueness validation', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Web Development 2026');
     const paddedDuplicate = `  ${programName}  `;
@@ -401,7 +401,7 @@ test.describe('Edge cases', () => {
     }
   });
 
-  test('TC-013: Create button disables immediately when Program Name becomes whitespace-only after trim', async ({
+  test('TC-013: Create button disables immediately when Program Name becomes whitespace-only after trim', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -417,7 +417,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.dialog).toBeVisible();
   });
 
-  test('TC-014: New Program modal shows required Program Name label and Cancel control', async ({
+  test('TC-014: New Program modal shows required Program Name label and Cancel control', { tag: '@sanity' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -430,7 +430,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.cancelButton).toBeVisible();
   });
 
-  test('TC-015: Description field must be scoped to modal to avoid table action button collisions', async ({
+  test('TC-015: Description field must be scoped to modal to avoid table action button collisions', { tag: '@regression' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);

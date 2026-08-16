@@ -44,7 +44,7 @@ async function createProgramAndSelect(
 }
 
 test.describe('Programs: Create semester for a selected program', () => {
-  test('TC-001 — Valid semester is created and appears in the panel', async ({
+  test('TC-001 — Valid semester is created and appears in the panel', { tag: '@smoke' }, async ({
     page,
     trackProgram,
   }) => {
@@ -75,7 +75,7 @@ test.describe('Programs: Create semester for a selected program', () => {
     await expect(programs.noSemestersYet).not.toBeVisible();
   });
 
-  test('TC-002 — Create Semester stays disabled when required fields are empty', async ({
+  test('TC-002 — Create Semester stays disabled when required fields are empty', { tag: '@sanity' }, async ({
     page,
     trackProgram,
   }) => {
@@ -100,7 +100,7 @@ test.describe('Programs: Create semester for a selected program', () => {
 
   test(
     'New Semester dialog opens via keyboard and reports known axe debt',
-    { tag: '@a11y' },
+    { tag: '@regression' },
     async ({ page, trackProgram }) => {
       const programs = new ProgramsPage(page);
       const programName = uniqueName('A11y Semester Program');

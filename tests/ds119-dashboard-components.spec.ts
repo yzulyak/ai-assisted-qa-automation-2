@@ -10,7 +10,7 @@ test.describe('DS-119: Dashboard displaying the right components', () => {
     await expect(dashboard.heading).toBeVisible({ timeout: 15_000 });
   });
 
-  test('TC-001 — Admin sees the four Dashboard blocks', async ({ page }) => {
+  test('TC-001 — Admin sees the four Dashboard blocks', { tag: '@smoke' }, async ({ page }) => {
     const dashboard = new DashboardPage(page);
 
     await expect(dashboard.heading).toBeVisible();
@@ -27,7 +27,7 @@ test.describe('DS-119: Dashboard displaying the right components', () => {
     await expect(results.violations).toEqual([]);
   });
 
-  test('TC-002 — Clicking the Programs card opens the Programs page', async ({
+  test('TC-002 — Clicking the Programs card opens the Programs page', { tag: '@e2e' }, async ({
     page,
   }) => {
     const dashboard = new DashboardPage(page);
@@ -90,7 +90,7 @@ test.describe('DS-119: Dashboard displaying the right components', () => {
     },
   );
 
-  test('TC-006 — Dashboard does not show unrelated navigation blocks as cards', async ({
+  test('TC-006 — Dashboard does not show unrelated navigation blocks as cards', { tag: '@regression' }, async ({
     page,
   }) => {
     const dashboard = new DashboardPage(page);
@@ -105,7 +105,7 @@ test.describe('DS-119: Dashboard displaying the right components', () => {
     await expect(dashboard.schedulerCard).not.toBeVisible();
   });
 
-  test('TC-007 — Sidebar Dashboard link returns to the Dashboard without losing the four cards', async ({
+  test('TC-007 — Sidebar Dashboard link returns to the Dashboard without losing the four cards', { tag: '@e2e' }, async ({
     page,
   }) => {
     const dashboard = new DashboardPage(page);
@@ -163,7 +163,7 @@ test.describe('DS-119: Dashboard displaying the right components', () => {
     },
   );
 
-  test('TC-010 — Browser back from a card destination returns to the Dashboard with all cards visible', async ({
+  test('TC-010 — Browser back from a card destination returns to the Dashboard with all cards visible', { tag: '@e2e' }, async ({
     page,
   }) => {
     const dashboard = new DashboardPage(page);

@@ -98,25 +98,94 @@ test.beforeEach(async ({ page }) => {
 
 **Why:** Prevents slow, flaky per-test login and session drift across the suite. See `auth-strategy.md`.
 
-## 5. Test data
+## 5. Tagging
 
-**Standard:** Unique data with `uniqueName()` / `Date.now()`; every test cleans up after itself via `trackProgram`.
+**Standard:** Exactly **one** tag on each `test(…)` from the set below — never on `describe`, never multiple tags.
+
+| Tag | Meaning |
+|---|---|
+| `@smoke` | Critical happy path; gate for a shippable build |
+| `@sanity` | Broader confidence after smoke |
+| `@regression` | Full feature / depth coverage |
+| `@api` | API / contract-focused checks |
+| `@e2e` | Multi-page or cross-flow journeys |
+| `@destructive` | Mutates **shared/global** state (locale, roles, feature flags, settings); runs **serially** via `npm run test:destructive` (`--workers=1`) |
+
+**`@destructive` is narrow.** A test that creates its own records and cleans them up (`trackProgram` / `finally`) keeps its importance tag (`@smoke`, `@sanity`, `@regression`, …) — that is **not** `@destructive`.
+
+**State revert (required).** Any test that mutates shared/global state — including every `@destructive` test — MUST restore the prior baseline in `test.afterEach` and/or `test.afterAll`. Own-data cleanup alone is not enough for locale / roles / flags / settings.
 
 ```typescript
-// ✅ Good — from tests/ds1-create-program.spec.ts + cleanup fixture
-const programName = uniqueName("Web Development 2026");
-await programsPage.createProgram(programName, trackProgram, description);
+// ✅ Good — importance tag + own-data cleanup (not @destructive)
+test("creates a program", { tag: "@smoke" }, async ({ page, trackProgram }) => {
+  const program = buildProgram();
+  // create via POM, then trackProgram(uuid, name) for teardown
+});
+
+// ✅ Good — shared-state mutation + serial tag + revert hook
+test("switches workspace locale", { tag: "@destructive" }, async ({ page }) => {
+  // mutate shared locale…
+});
+test.afterEach(async ({ page }) => {
+  // revert locale / roles / flags / settings to baseline
+});
+```
+
+```typescript
+// ❌ Bad
+test("creates a program", { tag: ["@smoke", "@e2e"] }, async () => { /* … */ }); // multiple tags
+test.describe("programs", { tag: "@regression" }, () => { /* … */ }); // tag on describe
+test("toggles a feature flag", { tag: "@regression" }, async () => {
+  // mutates shared flag with no afterEach/afterAll revert
+});
+test("creates a program", { tag: "@destructive" }, async () => {
+  // own-data create/cleanup is not shared-state mutation
+});
+```
+
+**Why:** Keeps grep slices meaningful, isolates suite-poisoning mutations to a serial lane, and forces explicit restore of global state.
+
+**Run slices:** `npm run test:smoke` · `test:sanity` · `test:regression` · `test:api` · `test:e2e` · `test:destructive`
+
+## 6. Test data
+
+**Standard:**
+
+| Kind | Where / how |
+|---|---|
+| Happy-path payloads | Faker factories under `test-data/factories/` |
+| Curated invalid / edge inputs | Static `.ts` sets (fixed values — not random) |
+| Secrets and base URLs | `process.env` only (`DIDAXIS_URL`, tokens, credentials) |
+| Repeated paths, statuses, messages | Typed enums / constants |
+| Isolation | Every create cleans up via `trackProgram` / `finally` |
+
+```typescript
+// ✅ Good — factory for happy-path data (test-data/factories/program.factory.ts)
+import { buildProgram } from "../test-data/factories/program.factory";
+
+const program = buildProgram();
+const createResponsePromise = programsPage.waitForProgramCreate();
+await programsPage.createProgram(program.name, program.description);
+trackProgram(await extractProgramId(await (await createResponsePromise).json()), program.name);
+```
+
+```typescript
+// ✅ Good — curated invalid set (static file, not Faker)
+// test-data/invalid/program-names.ts
+export const INVALID_PROGRAM_NAMES = ["", " ", "a".repeat(101)] as const;
 ```
 
 ```typescript
 // ❌ Bad
 const programName = "Web Development 2026"; // shared, collisions
+const token = "eyJhbGciOi…"; // hardcoded secret
+await page.goto("https://hardcoded-host/programs"); // hardcoded URL
 // create program and leave it in the environment
 ```
 
-**Why:** Prevents cross-test collisions and polluted Didaxis data that makes later runs fail for unrelated reasons.
+**Why:** Prevents cross-test collisions, secret leakage, invented invalid data that drifts from product rules, and duplicated magic strings.
 
-## 6. API testing
+## 7. API testing
 
 **Standard:** Prefer Playwright `request` for setup, teardown helpers, and contract checks; never hardcode tokens; never delete data the test did not create. *(Program teardown today uses `fixtures/cleanup.fixture.ts` — keep that path for UI-created programs.)*
 
@@ -140,9 +209,9 @@ const res = await fetch("https://hardcoded-host/api/programs", {
 
 **Why:** Prevents environment lock-in, leaked secrets, and teardown that destroys shared or foreign data.
 
-## 7. Network mocking
+## 8. Network mocking
 
-**Standard:** `page.route` / `fulfill` (or abort) for **500** / **503** / **timeout** / empty / malformed; never mock the endpoint under test; observe real UI copy first; one tag per test.
+**Standard:** `page.route` / `fulfill` (or abort) for **500** / **503** / **timeout** / empty / malformed; never mock the endpoint under test; observe real UI copy first; one allowed tag per test.
 
 ```typescript
 // ✅ Good — advised shape (repo has abort-style TC-012; prefer fulfill + narrow URL)
@@ -163,7 +232,7 @@ await expect(page.getByText("Service Unavailable!!!")).toBeVisible();
 
 **Why:** Prevents non-deterministic live-API edge flakes and false failures from invented copy or over-broad routes. See `.cursor/skills/network-mocked-edge-cases/`.
 
-## 8. Accessibility
+## 9. Accessibility
 
 **Standard:** Axe with `.withTags(['wcag2a','wcag2aa'])` on key pages + a keyboard-nav check; never `.disableRules()` to go green.
 
@@ -189,7 +258,7 @@ const results = await new AxeBuilder({ page })
 
 **Why:** Prevents shipping inaccessible UI and false-green a11y suites. See `.cursor/skills/a11y-checks/`.
 
-## 9. Assertions
+## 10. Assertions
 
 **Standard:** Web-first expects; `expect.soft` for independent multi-checks; visual (`toHaveScreenshot`) only where it earns it.
 
@@ -211,9 +280,9 @@ await expect(page).toHaveScreenshot(); // blanket visual by default
 
 **Why:** Prevents masked secondary failures and brittle pixel diffs on layouts that are not under visual contract.
 
-## 10. Anti-flake
+## 11. Anti-flake
 
-**Standard:** CI-only retries (max 2); isolation; `page.clock` for relative time; pinned `locale` / `timezoneId`; never `workers: 1`.
+**Standard:** CI-only retries (max 2); isolation; `page.clock` for relative time; pinned `locale` / `timezoneId`; never set suite-wide `workers: 1` — exception: `@destructive` via `npm run test:destructive` (`--workers=1` only for that grep).
 
 ```typescript
 // ✅ Good — config retries already in playwright.config.ts; clock advised (no in-repo clock yet)
@@ -224,12 +293,12 @@ await page.clock.install({ time: new Date("2026-08-04T18:00:00Z") });
 ```typescript
 // ❌ Bad
 // retries: 5
-// workers: 1
+// workers: 1  // suite-wide — use npm run test:destructive for shared-state tests only
 const label = `Updated ${new Date().toLocaleString()}`; // wall-clock drift local vs CI
 let sharedProgramName = ""; // mutable state across tests
 ```
 
-**Why:** Prevents hidden flake, serial bottlenecks, and date/time assertions that pass locally and fail in CI. *(Pin `locale` + `timezoneId` in config once chosen — not set yet.)*
+**Why:** Prevents hidden flake, serial bottlenecks on the full suite, and date/time assertions that pass locally and fail in CI. *(Pin `locale` + `timezoneId` in config once chosen — not set yet.)*
 
 ---
 
@@ -241,9 +310,22 @@ let sharedProgramName = ""; // mutable state across tests
 | Wait with `expect(locator).toBeVisible()` | Use `waitForTimeout` or `expect(await isVisible())` |
 | Put locators and actions in POMs | Inline locators or `expect` inside POMs |
 | Rely on setup `storageState` | UI-login before every feature test |
-| `uniqueName()` + `trackProgram` | Fixed names or leave programs behind |
+| Exactly one tag from the allowed set | Multiple tags, tags on `describe`, or ad-hoc tags |
+| `@destructive` only for shared/global mutation + revert hook | Tag own-data CRUD as `@destructive` or skip revert |
+| Faker factories + `trackProgram` / `finally` | Fixed names, hardcoded secrets/URLs, leave data behind |
 | Prefer `request` for API/contract checks | Hardcode tokens or delete foreign data |
 | Narrow `page.route` + observed UI copy | Mock the endpoint under test or invent strings |
 | Axe `wcag2a`/`wcag2aa` + keyboard check | `.disableRules()` to go green |
 | `expect.soft` for multi-checks; visual sparingly | Hard-stop every check; screenshot everything |
-| CI retries ≤2, isolate, `page.clock`, pin locale/TZ | Raise retries, `workers: 1`, wall-clock dates |
+| CI retries ≤2, isolate, `page.clock`, pin locale/TZ | Raise retries, suite-wide `workers: 1`, wall-clock dates |
+
+## Refusals (hard stops)
+
+Stop and raise the conflict — do not comply, weaken the rule, or work around it:
+
+- **Weaken/delete an assertion to go green** — refuse; keep the assertion and surface the failure.
+- **Heal a failure triage classified as a real app bug** — refuse self-heal / locator patches; route to bug-reporter.
+- **Replace a role-based locator with CSS/XPath** — refuse; keep `getByRole` / `getByLabel` (or documented `getByTestId`).
+- **Use `waitForTimeout`** — refuse; use web-first `expect` waits instead.
+- **Hardcode a credential or token** — refuse; use env / `storageState` only.
+- **Use the `any` type** — refuse; type the value properly.

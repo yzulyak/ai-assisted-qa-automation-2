@@ -11,7 +11,9 @@ You coordinate the QA subagents. Do the analysis yourself; delegate the rest.
 
 - **jira-ticket-to-gherkin** — ticket given → Gherkin test plan
 - **explore-and-generate** — no ticket; discover an untested UI flow → Gherkin plan
-- **self-heal** — after triage classifies **test issue (drift)** → patch POM locators via a11y tree
+- **self-heal** — after triage classifies **test issue (drift)** → re-discover via
+  Agent-Browser a11y tree, patch POM locators only, prove green with assertions
+  unchanged, open a repair PR
 
 ## Routing
 
@@ -19,10 +21,25 @@ You coordinate the QA subagents. Do the analysis yourself; delegate the rest.
 - no ticket / "explore coverage" → analyze (`explore-and-generate`) → produce a test plan
 - plan ready → delegate to **test-writer**
 - spec returned → run: `npx playwright test`
-- run is red → delegate to **triage**
-- real app bug / inconclusive → delegate to **bug-reporter**
-- test issue (drift) → apply **self-heal** (POM only; one repair per run; PR)
-- other test issue → delegate to **test-writer** (propose a fix; human OKs)
+- run is red → follow **Heal on red**
+- other test issue (not drift) → delegate to **test-writer** (propose a fix; human OKs)
+
+## Heal on red
+
+On a red run, delegate to **triage** to classify. Do not patch until triage returns.
+
+| Triage says | Action |
+|---|---|
+| **test issue (drift)** | Apply **self-heal**: re-discover via Agent-Browser, patch the POM, re-run to prove green with assertions unchanged, then open a repair PR linked to the run |
+| **real app bug** / inconclusive | Delegate to **bug-reporter** to file and link — **never heal a bug** |
+
+**Budget** — At most **5 heals per run**.
+
+**Stop and escalate** if a heal will not prove green (same failure after the attempt, or green only by changing assertions).
+
+**Never** heal an assertion — specs keep expected behavior; POMs hold locators only.
+
+**Never** merge a repair PR without a human.
 
 ## Backlog mode
 
@@ -33,9 +50,9 @@ triggers the run.
 **Queue** — All DS tickets in status `In Progress` that do **not** have the
 `tests-generated` label. Cap: at most **5 tickets per run**.
 
-**Per ticket** — analyze → **test-writer** → `npx playwright test` → **triage**
-on red. Open **one PR per ticket**, link the ticket, then add the
-`tests-generated` label so the next run skips it.
+**Per ticket** — analyze → **test-writer** → `npx playwright test` → **Heal on
+red** when the run is red. Open **one PR per ticket**, link the ticket, then add
+the `tests-generated` label so the next run skips it.
 
 **Failure** — On a repeated identical failure, stop that ticket and move on to
 the next. Do not burn the whole run on one flake.
@@ -47,13 +64,18 @@ the next. Do not burn the whole run on one flake.
 - At most 3 delegations per task
 - Never re-run an identical failing spec more than twice — then stop and ask
   (in backlog mode: stop that ticket and continue the queue)
+- Heal budget: at most 5 heals per run (see **Heal on red**)
 
 ## Approval
 
-A human approves any merge and any filed bug.
+A human approves any merge (including repair PRs) and any filed bug.
 
 ## Done
 
-The suite is green for the ticket (or each ticket in the backlog batch), or a
-bug is filed and linked. In backlog mode, every processed ticket has a PR and
-the `tests-generated` label.
+The suite is green for the ticket (or each ticket in the backlog batch), a
+repair PR is open and linked to the red run, or a bug is filed and linked. In
+backlog mode, every processed ticket has a PR and the `tests-generated` label.
+
+**Always** finish by regenerating `eval-report.md` (`npm run eval:report` /
+`.cursor/skills/eval-report`) — after Test Generation, and after any local
+agent or orchestrator run. Cursor has no built-in telemetry for these metrics.

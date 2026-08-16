@@ -3,7 +3,7 @@ import { ProgramsPage } from '../pages/ProgramsPage';
 import { uniqueName } from './helpers/uniqueName';
 
 test.describe('Programs', () => {
-  test('creates a new program via the New Program modal', async ({ page }) => {
+  test('creates a new program via the New Program modal', { tag: '@smoke' }, async ({ page }) => {
     const programsPage = new ProgramsPage(page);
     const programName = uniqueName('Web Development');
     const description = 'Full-stack web development program';
@@ -22,7 +22,7 @@ test.describe('Programs', () => {
     });
   });
 
-  test('opens the New Program form with name and description fields', async ({
+  test('opens the New Program form with name and description fields', { tag: '@sanity' }, async ({
     page,
   }) => {
     const programsPage = new ProgramsPage(page);

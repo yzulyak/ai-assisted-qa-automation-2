@@ -105,7 +105,7 @@ test.beforeEach(async () => {
 test.setTimeout(90_000);
 
 test.describe('Positive flows', () => {
-  test('TC-001: Each program in the list displays its name and description', async ({ page, trackProgram }) => {
+  test('TC-001: Each program in the list displays its name and description', { tag: '@smoke' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -141,7 +141,7 @@ test.describe('Positive flows', () => {
     expect(seededProgramCount).toBe(3);
   });
 
-  test('TC-002: Empty state message and create prompt are shown when no programs exist', async ({
+  test('TC-002: Empty state message and create prompt are shown when no programs exist', { tag: '@sanity' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);
@@ -158,7 +158,7 @@ test.describe('Positive flows', () => {
 });
 
 test.describe('Negative flows', () => {
-  test('TC-003: Empty state is not shown when programs exist', async ({ page, trackProgram }) => {
+  test('TC-003: Empty state is not shown when programs exist', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -172,7 +172,7 @@ test.describe('Negative flows', () => {
     await expect(programs.emptyStateMessage).not.toBeVisible();
   });
 
-  test('TC-004: Non-admin user cannot view the admin program list', async ({ page, trackProgram }) => {
+  test('TC-004: Non-admin user cannot view the admin program list', { tag: '@e2e' }, async ({ page, trackProgram }) => {
     test.skip(
       !NON_ADMIN_EMAIL || !NON_ADMIN_PASSWORD,
       'Set DIDAXIS_NON_ADMIN_EMAIL and DIDAXIS_NON_ADMIN_PASSWORD in .env',
@@ -200,7 +200,7 @@ test.describe('Negative flows', () => {
     }
   });
 
-  test('TC-005: Server error on load does not display the empty state', async ({ page, trackProgram }) => {
+  test('TC-005: Server error on load does not display the empty state', { tag: '@api' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -227,7 +227,7 @@ test.describe('Negative flows', () => {
     await expect(programs.programInList(programName)).not.toBeVisible();
   });
 
-  test('TC-006: Program list does not display unrelated or internal fields', async ({ page, trackProgram }) => {
+  test('TC-006: Program list does not display unrelated or internal fields', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     await goToPrograms(programs);
 
@@ -254,7 +254,7 @@ test.describe('Edge cases', () => {
     await goToPrograms(programs);
   });
 
-  test('TC-007: Special characters in name and description render correctly in the list', async ({ page, trackProgram }) => {
+  test('TC-007: Special characters in name and description render correctly in the list', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Informatique & IA - Niveau 2');
     const description = 'Parcours avancé — IA & data (2026)';
@@ -269,7 +269,7 @@ test.describe('Edge cases', () => {
     expect(rowText).not.toMatch(/&amp;|&lt;|&gt;/);
   });
 
-  test('TC-008: Maximum-length program name displays correctly in the list', async ({ page, trackProgram }) => {
+  test('TC-008: Maximum-length program name displays correctly in the list', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = maxLengthProgramName();
     const description = 'Max-length name display test';
@@ -297,7 +297,7 @@ test.describe('Edge cases', () => {
     await expectNoHorizontalLayoutBreak(page);
   });
 
-  test('TC-009: Program with empty description still appears in the list with its name', async ({ page, trackProgram }) => {
+  test('TC-009: Program with empty description still appears in the list with its name', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Standalone Certificate');
 
@@ -311,7 +311,7 @@ test.describe('Edge cases', () => {
     expect(rowText).toMatch(/^$|^—$|^-+$|No description/i);
   });
 
-  test('TC-010: Long description displays without breaking list layout', async ({ page, trackProgram }) => {
+  test('TC-010: Long description displays without breaking list layout', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Technical Writing Workshop');
     expect(LONG_DESCRIPTION.length).toBeGreaterThanOrEqual(500);
@@ -332,7 +332,7 @@ test.describe('Edge cases', () => {
     await expectNoHorizontalLayoutBreak(page);
   });
 
-  test('TC-011: Multiple programs with similar names are displayed as distinct list entries', async ({ page, trackProgram }) => {
+  test('TC-011: Multiple programs with similar names are displayed as distinct list entries', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const seedPrograms = [
       { name: uniqueName('Test Program'), description: 'Baseline test program' },
@@ -355,7 +355,7 @@ test.describe('Edge cases', () => {
     expect(seededProgramCount).toBe(3);
   });
 
-  test('TC-012: Page refresh preserves the program list content', async ({ page, trackProgram }) => {
+  test('TC-012: Page refresh preserves the program list content', { tag: '@regression' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const seedPrograms = [
       { name: uniqueName('Web Development 2026'), description: 'Full-stack web development program' },
@@ -384,7 +384,7 @@ test.describe('Edge cases', () => {
     expect(seededProgramCount).toBe(2);
   });
 
-  test('TC-013: Programs page displays heading, subtitle, and program table', async ({ page }) => {
+  test('TC-013: Programs page displays heading, subtitle, and program table', { tag: '@sanity' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     await expect(programs.heading).toBeVisible();
     await expect(programs.subtitle).toBeVisible();
@@ -402,7 +402,7 @@ test.describe('Edge cases', () => {
     await expect(programs.semesterPanelPlaceholder).toBeVisible();
   });
 
-  test('TC-014: Program row exposes Edit and Delete action buttons', async ({ page, trackProgram }) => {
+  test('TC-014: Program row exposes Edit and Delete action buttons', { tag: '@sanity' }, async ({ page, trackProgram }) => {
     const programs = new ProgramsPage(page);
     const programName = uniqueName('Action Buttons Program');
     const description = 'Verify row-level management actions are visible';
@@ -413,7 +413,7 @@ test.describe('Edge cases', () => {
     await expect(programs.deleteButton(programName)).toBeVisible();
   });
 
-  test('TC-015: Description field locator must be scoped to modal', async ({ page }) => {
+  test('TC-015: Description field locator must be scoped to modal', { tag: '@regression' }, async ({ page }) => {
     const programs = new ProgramsPage(page);
     const rowCount = await programs.programRowCount();
     test.skip(rowCount === 0, 'Requires at least one program row to validate locator scoping');
@@ -424,7 +424,7 @@ test.describe('Edge cases', () => {
     await expect(programs.newProgramModal.descriptionInput).toHaveValue('Scoped description locator test');
   });
 
-  test('TC-016: Malformed programs API response shows error instead of blank list', async ({
+  test('TC-016: Malformed programs API response shows error instead of blank list', { tag: '@api' }, async ({
     page,
   }) => {
     const programs = new ProgramsPage(page);

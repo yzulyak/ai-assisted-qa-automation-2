@@ -65,8 +65,29 @@ jobs:
           Per ticket: analyze → write a conforming Playwright spec under tests/ → run npx playwright test → triage on red.
           Open one PR per ticket, link the ticket, then add the tests-generated label so the next run skips it.
           On a repeated identical failure, stop that ticket and move on. Never merge or close a ticket.
+
+          Before finishing: regenerate eval-report.md per .cursor/skills/eval-report/SKILL.md
+          (`npm run eval:report` or `node scripts/generate-eval-report.mjs`). Commit it on
+          each ticket PR when you open one; if no PR this run, leave the file updated on
+          the working tree for the upload step.
           EOF
           )"
+
+      - name: Regenerate suite reliability eval report
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVAL_E2E_RUNS: '10'
+        run: npm run eval:report
+
+      - name: Upload eval report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: eval-report
+          path: eval-report.md
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

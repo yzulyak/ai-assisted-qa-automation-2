@@ -6,6 +6,19 @@
         "command": ".cursor/hooks/generation-gate.sh",
         "failClosed": true,
         "timeout": 15
+      },
+      {
+        "command": ".cursor/hooks/assert-guard.sh",
+        "matcher": "Write",
+        "failClosed": true,
+        "timeout": 15
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/eval-report-stop.sh",
+        "loop_limit": 1,
+        "timeout": 15
       }
     ]
   }
