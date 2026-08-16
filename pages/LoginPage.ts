@@ -12,7 +12,7 @@ export class LoginPage {
     this.page = page;
     this.emailInput = page.getByLabel('Email');
     this.passwordInput = page.getByLabel('Password');
-    this.signInButton = page.getByRole('button', { name: 'Log In' });
+    this.signInButton = page.getByRole('button', { name: 'Sign In' });
     this.signOutButton = page.getByRole('button', { name: 'Sign out' });
   }
 
