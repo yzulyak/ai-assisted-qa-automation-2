@@ -11,6 +11,7 @@ You coordinate the QA subagents. Do the analysis yourself; delegate the rest.
 
 - **jira-ticket-to-gherkin** — ticket given → Gherkin test plan
 - **explore-and-generate** — no ticket; discover an untested UI flow → Gherkin plan
+- **self-heal** — after triage classifies **test issue (drift)** → patch POM locators via a11y tree
 
 ## Routing
 
@@ -19,8 +20,9 @@ You coordinate the QA subagents. Do the analysis yourself; delegate the rest.
 - plan ready → delegate to **test-writer**
 - spec returned → run: `npx playwright test`
 - run is red → delegate to **triage**
-- real app bug → delegate to **bug-reporter**
-- test issue → delegate to **test-writer** (propose a fix; human OKs)
+- real app bug / inconclusive → delegate to **bug-reporter**
+- test issue (drift) → apply **self-heal** (POM only; one repair per run; PR)
+- other test issue → delegate to **test-writer** (propose a fix; human OKs)
 
 ## Backlog mode
 
